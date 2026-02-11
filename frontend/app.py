@@ -4,15 +4,12 @@ Giao diện web giống Gemini
 """
 from config.config import config
 from backend.rag.chain import HealthChatbot
-from backend.auth.auth_service import AuthService
-from backend.auth.decorators import login_required, logout_required
-from flask import Flask, render_template, request, jsonify, Response, stream_with_context, session, redirect, url_for, flash
+from flask import Flask, render_template, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
 import sys
 from pathlib import Path
 import json
 import time
-import secrets
 
 # Add project root to path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -20,11 +17,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 # Initialize Flask app
 app = Flask(__name__)
-app.secret_key = secrets.token_hex(32)  # Secret key cho session
 CORS(app)  # Enable CORS for API requests
-
-# Initialize auth service
-auth_service = AuthService()
 
 # Initialize chatbot (singleton)
 chatbot = None
@@ -42,12 +35,9 @@ def get_chatbot():
 
 
 @app.route('/')
-@login_required
 def index():
     """Render main chat page"""
-    username = session.get('username', 'User')
-    role = session.get('role', 'USER')
-    return render_template('index.html', username=username, role=role)
+    return render_template('index.html')
 
 
 @app.route('/api/health', methods=['GET'])
@@ -67,68 +57,7 @@ def health_check():
         }), 500
 
 
-@app.route('/register', methods=['GET', 'POST'])
-@logout_required
-def register():
-    """Trang đăng ký"""
-    if request.method == 'POST':
-        username = request.form.get('username', '').strip()
-        email = request.form.get('email', '').strip()
-        password = request.form.get('password', '')
-        confirm_password = request.form.get('confirm_password', '')
-
-        success, message, user_id = auth_service.register_user(
-            username, email, password, confirm_password
-        )
-
-        if success:
-            flash(message, 'success')
-            return redirect(url_for('login'))
-        else:
-            flash(message, 'danger')
-            return render_template('register.html')
-
-    return render_template('register.html')
-
-
-@app.route('/login', methods=['GET', 'POST'])
-@logout_required
-def login():
-    """Trang đăng nhập"""
-    if request.method == 'POST':
-        username = request.form.get('username', '').strip()
-        password = request.form.get('password', '')
-
-        success, message, user_data = auth_service.login_user(
-            username, password)
-
-        if success and user_data:
-            # Lưu thông tin vào session
-            session['user_id'] = user_data['id']
-            session['username'] = user_data['username']
-            session['email'] = user_data['email']
-            session['role'] = user_data['role']
-
-            flash(message, 'success')
-            return redirect(url_for('index'))
-        else:
-            flash(message, 'danger')
-            return render_template('login.html')
-
-    return render_template('login.html')
-
-
-@app.route('/logout')
-def logout():
-    """Đăng xuất"""
-    username = session.get('username', 'User')
-    session.clear()
-    flash(f'Tạm biệt {username}! Đã đăng xuất thành công.', 'info')
-    return redirect(url_for('login'))
-
-
 @app.route('/api/chat', methods=['POST'])
-@login_required
 def chat():
     """
     Chat endpoint - Non-streaming response
