@@ -8,8 +8,7 @@ from backend.utils.query_normalizer import normalize_query
 from backend.utils.logger import get_logger
 import sys
 from pathlib import Path
-from typing import List, Dict, Tuple
-import numpy as np
+from typing import List, Dict
 from rank_bm25 import BM25Okapi
 import re
 
@@ -371,6 +370,43 @@ class RAGRetriever:
         logger.info(
             f"✅ BM25 index đã sẵn sàng: {len(self.bm25_corpus)} documents")
 
+    def _extract_disease_keywords(self, query: str) -> List[str]:
+        """Backward-compatible disease keyword extraction for legacy tests/callers.
+
+        Returns matched disease phrases from query text (not filenames).
+        """
+        if not query:
+            return []
+
+        query_lower = query.lower()
+        matched_keywords = []
+        matched_spans = []
+
+        # Match longer phrases first to avoid short-keyword shadowing.
+        sorted_keywords = sorted(
+            DiseaseDetector.DISEASE_TO_FILE.keys(),
+            key=len,
+            reverse=True,
+        )
+
+        for keyword in sorted_keywords:
+            idx = query_lower.find(keyword)
+            if idx == -1:
+                continue
+
+            span = (idx, idx + len(keyword))
+            overlaps = any(
+                not (span[1] <= s[0] or span[0] >= s[1])
+                for s in matched_spans
+            )
+            if overlaps:
+                continue
+
+            matched_spans.append(span)
+            matched_keywords.append(keyword)
+
+        return matched_keywords
+
     def load_vector_store(self, path: str = None) -> bool:
         """
         Load vector store từ file
@@ -619,7 +655,7 @@ class RAGRetriever:
         final_results.sort(key=lambda x: x.get('rrf_score', 0), reverse=True)
 
         if config.DEBUG:
-            logger.debug(f"\n📊 Stage 2: RRF ranked candidates")
+            logger.debug("\n📊 Stage 2: RRF ranked candidates")
             # Show top 10 before filtering
             for i, doc in enumerate(final_results[:10], 1):
                 rrf = doc.get('rrf_score', 0)
@@ -843,7 +879,7 @@ def demo_retriever():
 
     # Kiểm tra vector store
     stats = retriever.get_stats()
-    print(f"\n📊 Thống kê Retriever:")
+    print("\n📊 Thống kê Retriever:")
     print(f"  - Total documents: {stats['total_documents']}")
     print(f"  - Embedding dimension: {stats['embedding_dim']}")
     print(f"  - Top-K: {stats['top_k']}")
@@ -876,7 +912,7 @@ def demo_retriever():
             print("  ⚠️  Không tìm thấy kết quả")
             continue
 
-        print(f"\n🔍 Top 3 kết quả:\n")
+        print("\n🔍 Top 3 kết quả:\n")
 
         for i, doc in enumerate(results, 1):
             print(f"  [{i}] Similarity: {doc['similarity']:.3f}")

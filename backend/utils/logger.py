@@ -3,7 +3,6 @@ Logger Utility - Centralized logging cho toàn bộ dự án
 """
 import logging
 import sys
-from pathlib import Path
 from datetime import datetime
 from config.config import config
 

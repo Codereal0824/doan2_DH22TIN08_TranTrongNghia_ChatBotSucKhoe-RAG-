@@ -3,7 +3,7 @@ Groq API Client - Kết nối và sử dụng Groq LLM
 """
 from config.config import config
 from groq import Groq
-from typing import List, Dict, Optional, Generator
+from typing import List, Dict, Generator
 import sys
 import time
 import re
@@ -38,7 +38,7 @@ class GroqClient:
             )
 
         self.client = Groq(api_key=self.api_key)
-        logger.info(f"✅ Groq Client khởi tạo thành công!")
+        logger.info("✅ Groq Client khởi tạo thành công!")
         logger.info(f"📌 Model: {self.model}")
 
     def chat(
@@ -85,7 +85,8 @@ class GroqClient:
                 if '429' in error_str or 'rate_limit' in error_str:
                     # Daily token limit (TPD) → fail immediately, no retry
                     if 'tokens per day' in error_str.lower() or 'TPD' in error_str:
-                        logger.error("❌ Daily token quota exhausted (TPD). Cannot retry.")
+                        logger.error(
+                            "❌ Daily token quota exhausted (TPD). Cannot retry.")
                         raise Exception("API_DAILY_LIMIT")
                     # Short rate limit → retry with backoff
                     wait_time = self._parse_retry_after(
@@ -160,7 +161,8 @@ class GroqClient:
                 if '429' in error_str or 'rate_limit' in error_str:
                     # Daily token limit (TPD) → fail immediately
                     if 'tokens per day' in error_str.lower() or 'TPD' in error_str:
-                        logger.error("❌ Daily token quota exhausted (TPD). Cannot retry.")
+                        logger.error(
+                            "❌ Daily token quota exhausted (TPD). Cannot retry.")
                         raise Exception("API_DAILY_LIMIT")
                     wait_time = self._parse_retry_after(
                         error_str, default=10 * (attempt + 1))
@@ -250,7 +252,7 @@ def demo_groq_client():
 
         question = "Triệu chứng cảm cúm là gì? Trả lời ngắn gọn."
         print(f"\n❓ Câu hỏi: {question}")
-        print(f"\n🤖 Trả lời:")
+        print("\n🤖 Trả lời:")
 
         answer = groq.simple_ask(question)
         print(answer)
@@ -267,7 +269,7 @@ Luôn khuyến nghị đi khám bác sĩ nếu nghiêm trọng."""
 
         question = "Đau đầu kéo dài nên làm gì?"
         print(f"\n❓ Câu hỏi: {question}")
-        print(f"\n🤖 Trả lời:")
+        print("\n🤖 Trả lời:")
 
         answer = groq.simple_ask(question, system_prompt)
         print(answer)
@@ -282,8 +284,8 @@ Luôn khuyến nghị đi khám bác sĩ nếu nghiêm trọng."""
             {"role": "user", "content": "Cách phòng ngừa cảm cúm hiệu quả?"}
         ]
 
-        print(f"\n❓ Câu hỏi: Cách phòng ngừa cảm cúm hiệu quả?")
-        print(f"\n🤖 Trả lời (streaming):")
+        print("\n❓ Câu hỏi: Cách phòng ngừa cảm cúm hiệu quả?")
+        print("\n🤖 Trả lời (streaming):")
 
         for chunk in groq.chat_stream(messages):
             print(chunk, end='', flush=True)

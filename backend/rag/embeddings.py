@@ -8,7 +8,6 @@ from sentence_transformers import SentenceTransformer
 import numpy as np
 import sys
 from pathlib import Path
-import hashlib
 
 # Thêm path để import config
 sys.path.append(str(Path(__file__).parent.parent.parent))
@@ -188,7 +187,7 @@ def demo_embeddings():
 
     # Hiển thị info
     info = embedder.get_model_info()
-    print(f"\n📊 Thông tin model:")
+    print("\n📊 Thông tin model:")
     print(f"  - Model: {info['model_name']}")
     print(f"  - Dimension: {info['embedding_dimension']}")
     print(f"  - Max sequence length: {info['max_seq_length']}")
@@ -229,7 +228,7 @@ def demo_embeddings():
     query = "Làm sao để điều trị cảm cúm?"
 
     print(f"Câu hỏi: '{query}'")
-    print(f"\nĐộ tương đồng với các câu khác:")
+    print("\nĐộ tương đồng với các câu khác:")
 
     for text in texts:
         sim = embedder.similarity(query, text)
@@ -253,7 +252,7 @@ def demo_embeddings():
 
     docs_with_embeddings = embedder.encode_documents(documents)
 
-    print(f"\nKết quả:")
+    print("\nKết quả:")
     for i, doc in enumerate(docs_with_embeddings, 1):
         print(f"Document {i}:")
         print(f"  Content: {doc['content']}")

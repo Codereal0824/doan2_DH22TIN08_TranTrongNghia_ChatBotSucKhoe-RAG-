@@ -4,7 +4,6 @@ RAG Chain - Kết hợp Retrieval + Generation
 from config.config import config
 from backend.rag.prompts import (
     HEALTH_CHATBOT_SYSTEM_PROMPT,
-    RAG_PROMPT_TEMPLATE,
     GREETING_RESPONSES,
     FAREWELL_RESPONSES,
     NO_DOCS_FOUND_RESPONSE,
@@ -14,7 +13,6 @@ from backend.rag.prompts import (
     is_greeting,
     is_farewell,
     build_messages,
-    violates_policy,
     sanitize_answer,
     verify_answer,
     check_context_relevance,    # Pre-LLM relevance gate
@@ -28,7 +26,7 @@ from backend.utils.logger import get_logger
 import re
 import sys
 from pathlib import Path
-from typing import List, Dict, Tuple, Optional, Generator
+from typing import List, Dict, Tuple, Generator
 import random
 
 logger = get_logger(__name__)
@@ -612,7 +610,7 @@ def demo_rag_chain():
 
         question = "Triệu chứng cảm cúm là gì?"
         print(f"\n❓ Câu hỏi: {question}")
-        print(f"\n🤖 Trả lời:")
+        print("\n🤖 Trả lời:")
 
         answer = rag_chain.ask(question)
         print(answer)
@@ -624,7 +622,7 @@ def demo_rag_chain():
 
         question = "Đau đầu kéo dài nên làm gì?"
         print(f"\n❓ Câu hỏi: {question}")
-        print(f"\n🤖 Trả lời (streaming):")
+        print("\n🤖 Trả lời (streaming):")
 
         for chunk in rag_chain.ask_stream(question):
             print(chunk, end='', flush=True)

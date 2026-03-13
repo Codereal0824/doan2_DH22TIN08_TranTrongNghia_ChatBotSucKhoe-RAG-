@@ -265,7 +265,7 @@ class DocumentChunker:
                     f"   ✅ Section-based chunking: {len(section_chunks)} sections")
                 return section_chunks
             else:
-                print(f"   ⚠️  No sections found, falling back to token-based chunking")
+                print("   ⚠️  No sections found, falling back to token-based chunking")
 
         # ============================================
         # FALLBACK: TOKEN-BASED CHUNKING
@@ -400,18 +400,18 @@ def demo_chunking():
     # Chunk văn bản
     chunks = chunker.chunk_text(sample_text, metadata)
 
-    print(f"\n📊 Kết quả:")
+    print("\n📊 Kết quả:")
     print(f"  - Chunk size: {chunker.chunk_size}")
     print(f"  - Chunk overlap: {chunker.chunk_overlap}")
     print(f"  - Số chunks tạo ra: {len(chunks)}")
 
-    print(f"\n📄 Chi tiết các chunks:\n")
+    print("\n📄 Chi tiết các chunks:\n")
     for i, chunk in enumerate(chunks, 1):
         print(f"Chunk {i}/{len(chunks)}:")
         print(f"  Độ dài: {len(chunk['content'])} ký tự")
         print(f"  Metadata: {chunk['metadata']}")
-        print(f"  Nội dung:")
-        print(f"  ---")
+        print("  Nội dung:")
+        print("  ---")
         print(f"  {chunk['content'][:150]}...")
         print()
 
@@ -428,7 +428,7 @@ def demo_chunking():
         metadata={'source': 'tips.txt'}
     )
 
-    print(f"\n📊 Kết quả:")
+    print("\n📊 Kết quả:")
     print(f"  Số chunks: {len(sentence_chunks)}")
 
     for i, chunk in enumerate(sentence_chunks, 1):

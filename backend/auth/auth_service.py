@@ -3,7 +3,6 @@ Authentication Service - Xử lý đăng ký và đăng nhập
 """
 from werkzeug.security import generate_password_hash, check_password_hash
 from backend.database.sql_handler import SQLHandler
-from datetime import datetime
 from typing import Optional, Dict, Tuple
 
 

@@ -2,7 +2,7 @@
 Query Normalizer - Chuẩn hóa câu hỏi người dùng trước khi tìm kiếm
 """
 import re
-from typing import Dict, List
+from typing import Dict
 
 # ============================================
 # NORMALIZATION RULES
@@ -130,7 +130,7 @@ def normalize_query(query: str) -> str:
     normalized = query.lower().strip()
 
     # Log original query
-    print(f"\n🔄 QUERY NORMALIZATION:")
+    print("\n🔄 QUERY NORMALIZATION:")
     print(f"   Original: '{query}'")
 
     # 1. Áp dụng synonym patterns (đồng nghĩa)
@@ -259,7 +259,7 @@ def test_normalizer():
 
     for query in test_cases:
         print(f"\n{'─' * 70}")
-        normalized = normalize_query(query)
+        normalize_query(query)
 
         # Check if should block
         should_block, reason = should_block_query(query)

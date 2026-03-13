@@ -3,7 +3,6 @@ Flask Web Application - Chatbot Tư Vấn Sức Khỏe (với Rate Limiting, Log
 Giao diện web giống Gemini
 """
 from backend.utils.logger import get_logger
-from config.config import config
 from backend.rag.chain import HealthChatbot
 from backend.auth.auth_service import AuthService
 from backend.database.sql_handler import SQLHandler
@@ -15,7 +14,6 @@ import sys
 import os
 from pathlib import Path
 import json
-import time
 import secrets
 
 # =====================================================================

@@ -5,7 +5,7 @@ from config.config import config
 import sys
 from pathlib import Path
 import pyodbc
-from typing import List, Dict, Optional
+from typing import List, Dict
 
 # =====================================================================
 # Ép Python tìm thư mục gốc (Cái này phải nằm ở trên cùng)

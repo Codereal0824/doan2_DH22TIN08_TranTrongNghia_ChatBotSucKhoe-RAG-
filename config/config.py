@@ -149,7 +149,7 @@ if __name__ == "__main__":
     config.create_directories()
     config.validate()
 
-    print(f"\n📊 Thông tin cấu hình:")
+    print("\n📊 Thông tin cấu hình:")
     print(f"  - Groq Model: {config.GROQ_MODEL}")
     print(f"  - SQL Server: {config.SQL_SERVER}")
     print(f"  - SQL Database: {config.SQL_DATABASE}")

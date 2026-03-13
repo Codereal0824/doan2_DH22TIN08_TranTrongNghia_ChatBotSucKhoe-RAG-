@@ -5,7 +5,7 @@ from config.config import config
 import faiss
 import numpy as np
 import pickle
-from typing import List, Dict, Tuple
+from typing import List, Dict
 from pathlib import Path
 import sys
 
@@ -204,11 +204,11 @@ def demo_vector_store():
     embedder = EmbeddingModel(use_vietnamese=False)  # Dùng model nhẹ cho demo
 
     # Tạo vector store
-    print(f"\n2️⃣  Tạo vector store...")
+    print("\n2️⃣  Tạo vector store...")
     vector_store = VectorStore(dimension=embedder.embedding_dim)
 
     # Tạo documents mẫu
-    print(f"\n3️⃣  Chuẩn bị documents...")
+    print("\n3️⃣  Chuẩn bị documents...")
     texts = [
         "Cảm cúm là bệnh do virus, có triệu chứng sốt và đau đầu",
         "Viêm amidan gây đau họng, khó nuốt, cần uống kháng sinh",
@@ -238,17 +238,17 @@ def demo_vector_store():
     documents = embedder.encode_documents(documents)
 
     # Thêm vào vector store
-    print(f"\n4️⃣  Thêm documents vào vector store...")
+    print("\n4️⃣  Thêm documents vào vector store...")
     vector_store.add_documents(documents)
 
     # Hiển thị thống kê
     stats = vector_store.get_stats()
-    print(f"\n📊 Thống kê:")
+    print("\n📊 Thống kê:")
     for key, value in stats.items():
         print(f"  - {key}: {value}")
 
     # Test tìm kiếm
-    print(f"\n5️⃣  TEST TÌM KIẾM")
+    print("\n5️⃣  TEST TÌM KIẾM")
     print("=" * 60)
 
     queries = [
@@ -266,7 +266,7 @@ def demo_vector_store():
         # Tìm kiếm
         results = vector_store.search(query_embedding, top_k=3)
 
-        print(f"🔍 Top 3 kết quả:")
+        print("🔍 Top 3 kết quả:")
         for result in results:
             print(f"\n  Rank #{result['rank']}:")
             print(f"  📄 {result['content']}")
@@ -274,14 +274,14 @@ def demo_vector_store():
             print(f"  📌 Source: {result['metadata']['source']}")
 
     # Test save/load
-    print(f"\n6️⃣  TEST SAVE/LOAD")
+    print("\n6️⃣  TEST SAVE/LOAD")
     print("=" * 60)
 
     save_path = str(config.VECTOR_STORE_DIR / "demo_index")
     vector_store.save(save_path)
 
     # Tạo vector store mới và load
-    print(f"\n⏳ Tạo vector store mới và load...")
+    print("\n⏳ Tạo vector store mới và load...")
     new_vector_store = VectorStore(dimension=embedder.embedding_dim)
     new_vector_store.load(save_path)
 
@@ -289,7 +289,7 @@ def demo_vector_store():
     query_embedding = embedder.encode_text("sốt cao")
     results = new_vector_store.search(query_embedding, top_k=2)
 
-    print(f"\n✅ Test search sau khi load:")
+    print("\n✅ Test search sau khi load:")
     for result in results[:2]:
         print(
             f"  - {result['content'][:50]}... (sim: {result['similarity']:.3f})")

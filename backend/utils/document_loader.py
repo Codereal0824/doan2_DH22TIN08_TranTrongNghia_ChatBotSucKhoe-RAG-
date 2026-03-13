@@ -8,7 +8,6 @@ import sys
 
 # PDF
 try:
-    import pypdf
     from pypdf import PdfReader
     HAS_PYPDF = True
 except:
@@ -38,7 +37,7 @@ class DocumentLoader:
             self.supported_formats.extend(['.docx', '.doc'])
         self.supported_formats.extend(['.txt', '.md'])
 
-        print(f"✅ Document Loader sẵn sàng")
+        print("✅ Document Loader sẵn sàng")
         print(f"📂 Hỗ trợ: {', '.join(self.supported_formats)}")
 
     def load_pdf(self, file_path: str) -> Dict:
@@ -223,7 +222,7 @@ class DocumentLoader:
                 if doc['content']:  # Chỉ thêm nếu có content
                     documents.append(doc)
 
-        print(f"\n📚 Tổng kết:")
+        print("\n📚 Tổng kết:")
         print(f"  - Đã đọc {len(documents)} files từ {directory}")
 
         return documents
@@ -239,7 +238,7 @@ def demo_document_loader():
     loader = DocumentLoader()
 
     # Tạo file text mẫu để demo
-    print(f"\n1️⃣  Tạo file mẫu...")
+    print("\n1️⃣  Tạo file mẫu...")
 
     sample_dir = config.HEALTH_KNOWLEDGE_DIR
     sample_dir.mkdir(parents=True, exist_ok=True)
@@ -312,36 +311,36 @@ Cập nhật: 2026
     print(f"✅ Đã tạo file: {sample_file.name}")
 
     # Test load file đơn
-    print(f"\n2️⃣  TEST LOAD FILE ĐƠN")
+    print("\n2️⃣  TEST LOAD FILE ĐƠN")
     print("=" * 60)
 
     doc = loader.load_file(str(sample_file))
 
-    print(f"\n📄 Document info:")
+    print("\n📄 Document info:")
     print(f"  Source: {doc['metadata']['source']}")
     print(f"  Type: {doc['metadata']['type']}")
     print(f"  Content length: {len(doc['content'])} ký tự")
-    print(f"\n📝 Nội dung (200 ký tự đầu):")
+    print("\n📝 Nội dung (200 ký tự đầu):")
     print(f"  {doc['content'][:200]}...")
 
     # Test load directory
-    print(f"\n3️⃣  TEST LOAD DIRECTORY")
+    print("\n3️⃣  TEST LOAD DIRECTORY")
     print("=" * 60)
 
     documents = loader.load_directory(str(sample_dir))
 
-    print(f"\n📚 Kết quả:")
+    print("\n📚 Kết quả:")
     for i, doc in enumerate(documents, 1):
         print(f"\n  Document {i}:")
         print(f"    File: {doc['metadata']['source']}")
         print(f"    Type: {doc['metadata']['format']}")
         print(f"    Size: {len(doc['content'])} ký tự")
 
-    print(f"\n✅ Demo hoàn tất!")
-    print(f"\n💡 Hướng dẫn sử dụng:")
+    print("\n✅ Demo hoàn tất!")
+    print("\n💡 Hướng dẫn sử dụng:")
     print(f"  1. Đưa file PDF/Word vào thư mục: {sample_dir}")
     print(f"  2. Chạy loader.load_directory('{sample_dir}')")
-    print(f"  3. Documents sẽ được đọc tự động!")
+    print("  3. Documents sẽ được đọc tự động!")
 
 
 if __name__ == "__main__":

@@ -83,14 +83,14 @@ def validate_all():
             print(f"✅ {filepath.name}")
 
     print("\n" + "=" * 70)
-    print(f"📊 TỔNG KẾT:")
+    print("📊 TỔNG KẾT:")
     print(f"   - Tổng files: {len(files)}")
     print(f"   - Files OK: {len(files) - len(problematic_files)}")
     print(f"   - Files có vấn đề: {len(problematic_files)}")
     print(f"   - Tổng issues: {total_issues}")
 
     if problematic_files:
-        print(f"\n⚠️ CẦN KIỂM TRA:")
+        print("\n⚠️ CẦN KIỂM TRA:")
         for fname in problematic_files:
             print(f"   - {fname}")
 

@@ -25,13 +25,13 @@ def backup_current_database():
     backup_path = backup_dir / backup_name
 
     # Copy vector store files
-    print(f"\n📦 Backing up current vector database...")
+    print("\n📦 Backing up current vector database...")
     print(f"   Source: {vector_store_dir}")
     print(f"   Destination: {backup_path}")
 
     try:
         shutil.copytree(vector_store_dir, backup_path)
-        print(f"✅ Backup created successfully!")
+        print("✅ Backup created successfully!")
 
         # Show backup files
         backup_files = list(backup_path.glob("*"))
