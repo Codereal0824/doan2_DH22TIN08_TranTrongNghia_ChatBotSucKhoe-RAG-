@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chatbot Tư Vấn Sức Khỏe</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* Layout chia cột Sidebar và Main Content */
+      body {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        margin: 0;
+        background-color: #f0f2f5;
+      }
+      .header {
+        flex-shrink: 0;
+        z-index: 100;
+      }
+      .main-wrapper {
+        display: flex;
+        flex: 1;
+        overflow: hidden;
+      }
+
+      /* Sidebar Style */
+      .sidebar {
+        width: 280px;
+        background-color: #ffffff;
+        border-right: 1px solid #e0e0e0;
+        display: flex;
+        flex-direction: column;
+        transition: all 0.3s ease;
+      }
+      .sidebar-header {
+        padding: 20px;
+        border-bottom: 1px solid #f0f0f0;
+      }
+      .new-chat-btn {
+        width: 100%;
+        padding: 12px;
+        border-radius: 10px;
+        border: 1px dashed #667eea;
+        background: #f8faff;
+        color: #667eea;
+        cursor: pointer;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        transition: 0.2s;
+      }
+      .new-chat-btn:hover {
+        background: #eef2ff;
+        border-style: solid;
+      }
+
+      /* Danh sách các phiên chat */
+      #sessionList {
+        list-style: none;
+        padding: 10px;
+        margin: 0;
+        overflow-y: auto;
+        flex: 1;
+      }
+      .session-item {
+        padding: 12px;
+        margin-bottom: 5px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 14px;
+        color: #444;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        transition: 0.2s;
+      }
+      .session-item:hover {
+        background-color: #f1f3f4;
+      }
+      .session-item.active {
+        background-color: #e8f0fe;
+        color: #1a73e8;
+        font-weight: 500;
+      }
+
+      /* Đảm bảo khung chat cũ vẫn hoạt động tốt */
+      .container {
+        flex: 1;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        max-width: 100% !important;
+        background-color: #ffffff;
+      }
+
+      @media (max-width: 768px) {
+        .sidebar {
+          display: none; /* Tạm ẩn sidebar trên điện thoại */
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="header">
+      <div class="header-content">
+        <div class="logo">
+          <svg class="logo-icon" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M12 2L2 7L12 12L22 7L12 2Z"
+              fill="currentColor"
+              opacity="0.3"
+            />
+            <path
+              d="M2 17L12 22L22 17"
+              stroke="currentColor"
+              stroke-width="2"
+            />
+            <path
+              d="M2 12L12 17L22 12"
+              stroke="currentColor"
+              stroke-width="2"
+            />
+          </svg>
+          <h1>Chatbot Sức Khỏe</h1>
+        </div>
+        <div class="header-actions">
+          <span
+            style="
+              color: var(--text-secondary);
+              margin-right: 12px;
+              font-size: 14px;
+            "
+          >
+            👤 {{ username }} {% if role == 'ADMIN' %}<span
+              style="color: #667eea; font-weight: 500"
+              >(Admin)</span
+            >{% endif %}
+          </span>
+          <button
+            class="icon-btn"
+            id="logoutBtn"
+            title="Đăng xuất"
+            onclick="window.location.href='{{ url_for('logout') }}'"
+          >
+            <svg viewBox="0 0 24 24" fill="none">
+              <path
+                d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"
+                stroke="currentColor"
+                stroke-width="2"
+              />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <div class="main-wrapper">
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <button class="new-chat-btn" id="clearBtn">
+            <span>+</span> Đoạn chat mới
+          </button>
+        </div>
+        <ul id="sessionList">
+          <li class="session-item text-muted" style="font-style: italic">
+            Đang tải lịch sử...
+          </li>
+        </ul>
+      </aside>
+
+      <div class="container">
+        <div class="welcome-screen" id="welcomeScreen">
+          <div class="welcome-content">
+            <div class="welcome-icon">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z"
+                  fill="url(#gradient)"
+                  opacity="0.2"
+                />
+                <path
+                  d="M8 14C8 14 9.5 16 12 16C14.5 16 16 14 16 14M9 9H9.01M15 9H15.01"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                />
+                <defs>
+                  <linearGradient id="gradient" x1="2" y1="2" x2="22" y2="22">
+                    <stop offset="0%" stop-color="#4285f4" />
+                    <stop offset="100%" stop-color="#34a853" />
+                  </linearGradient>
+                </defs>
+              </svg>
+            </div>
+            <h2>Xin chào! Tôi là trợ lý tư vấn sức khỏe</h2>
+            <p>
+              Hãy đặt câu hỏi về sức khỏe, dinh dưỡng, hoặc lối sống lành mạnh
+            </p>
+
+            <div class="example-questions">
+              <h3>Câu hỏi gợi ý:</h3>
+              <div class="examples-grid">
+                <button
+                  class="example-btn"
+                  data-question="Triệu chứng cảm lạnh là gì?"
+                >
+                  <span class="example-icon">🤧</span>
+                  <span>Triệu chứng cảm lạnh?</span>
+                </button>
+                <button
+                  class="example-btn"
+                  data-question="Cách phòng ngừa bệnh theo mùa?"
+                >
+                  <span class="example-icon">🛡️</span>
+                  <span>Phòng bệnh theo mùa?</span>
+                </button>
+                <button
+                  class="example-btn"
+                  data-question="Chế độ ăn lành mạnh là gì?"
+                >
+                  <span class="example-icon">🥗</span>
+                  <span>Chế độ ăn lành mạnh?</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="chat-container" id="chatContainer">
+          <div class="messages" id="messages"></div>
+        </div>
+
+        <div class="input-area">
+          <div class="input-container">
+            <textarea
+              id="messageInput"
+              placeholder="Hỏi về sức khỏe, dinh dưỡng, lối sống..."
+              rows="1"
+              maxlength="2000"
+            ></textarea>
+            <button class="send-btn" id="sendBtn" disabled>
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+              </svg>
+            </button>
+          </div>
+          <div class="input-footer">
+            <span class="char-count" id="charCount">0 / 2000</span>
+            <span class="model-info"
+              >Powered by Llama-3 + RAG + SQL Server</span
+            >
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="loading-overlay" id="loadingOverlay">
+      <div class="loading-spinner"></div>
+      <p>Đang chuẩn bị hệ thống...</p>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  </body>
+</html>
