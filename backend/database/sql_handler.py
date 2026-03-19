@@ -119,24 +119,4 @@ class SQLHandler:
         return self.execute_query(query, (session_id,))
 
 
-def test_connection():
-    print("=" * 60)
-    print("TEST KẾT NỐI SQL SERVER - CHATBOT RAG")
-    print("=" * 60)
-    db = SQLHandler()
-    if not db.connect():
-        print("❌ Không thể kết nối. Kiểm tra lại cấu hình!")
-        return
 
-    print("\n📊 Lấy danh sách Phiên chat của User ID = 1:")
-    sessions = db.get_user_sessions(user_id=1)
-    if sessions:
-        print(f"  Tìm thấy {len(sessions)} phiên chat.")
-    else:
-        print("  Chưa có phiên chat nào hoặc User ID không tồn tại.")
-    db.disconnect()
-    print("\n✅ Test hoàn tất!")
-
-
-if __name__ == "__main__":
-    test_connection()

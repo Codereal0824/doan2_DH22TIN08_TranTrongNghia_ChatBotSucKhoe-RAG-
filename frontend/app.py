@@ -36,7 +36,7 @@ app = Flask(__name__)
 # Secret key - load from env or generate
 app.secret_key = os.getenv('FLASK_SECRET_KEY') or secrets.token_hex(32)
 if not os.getenv('FLASK_SECRET_KEY'):
-    logger.warning("⚠️ FLASK_SECRET_KEY not set, using random key")
+    logger.warning(" FLASK_SECRET_KEY not set, using random key")
 
 CORS(app)
 
@@ -48,7 +48,7 @@ limiter = Limiter(
     storage_uri="memory://"
 )
 
-logger.info("✅ Rate limiter initialized")
+logger.info(" Rate limiter initialized")
 
 # Initialize services
 chatbot = None
@@ -250,8 +250,8 @@ def chat_stream():
                     yield f"data: {json.dumps({'type': 'token', 'content': chunk})}\n\n"
 
                 sources = []
-                if "📚 Nguồn:" in full_answer:
-                    parts = full_answer.split("📚 Nguồn:")
+                if " Nguồn:" in full_answer:
+                    parts = full_answer.split(" Nguồn:")
                     sources_text = parts[1].strip()
                     sources = [s.strip()
                                for s in sources_text.split(',') if s.strip()]
@@ -263,13 +263,13 @@ def chat_stream():
                 yield f"data: {json.dumps({'type': 'done'})}\n\n"
             except Exception as e:
                 logger.error(
-                    f"❌ Error in stream generation: {e}", exc_info=True)
+                    f" Error in stream generation: {e}", exc_info=True)
                 yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
 
         return Response(stream_with_context(generate()), mimetype='text/event-stream')
 
     except Exception as e:
-        logger.error(f"❌ Error in chat_stream endpoint: {e}", exc_info=True)
+        logger.error(f" Error in chat_stream endpoint: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 

@@ -524,7 +524,7 @@ class HealthChatbot:
         # Chat history: [(user_msg, bot_msg), ...]
         self.chat_history = []
 
-        # Max history turns
+        # Max history turns//lich su gan day va 5 luot chat
         self.max_history_turns = 5
 
         logger.info("✅ Health Chatbot sẵn sàng phục vụ!")

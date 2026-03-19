@@ -11,11 +11,11 @@ Prompts - Quản lý System Prompts và Templates cho Chatbot
 # 1. CHỈ CẤM HÀNH VI CHẨN ĐOÁN / KÊ ĐƠN (KHÔNG CẤM GIÁO DỤC)
 # ==========================================================
 
-FORBIDDEN_TERMS = [
-    "kê đơn",
-    "toa thuốc",
-    "y lệnh"
-]
+# FORBIDDEN_TERMS = [
+#     "kê đơn",
+#     "toa thuốc",
+#     "y lệnh"
+# ]
 
 FORBIDDEN_MEDICAL_ADVICE_PATTERNS = [
     "tôi chẩn đoán",
@@ -341,45 +341,6 @@ def sanitize_answer(answer: str) -> str:
 # ==========================================================
 # 8. VERIFICATION AI - POST-GENERATION VALIDATION
 # ==========================================================
-
-
-def extract_disease_names(text: str) -> list:
-    """
-    Trích xuất tên bệnh từ text (context hoặc answer)
-    """
-    import re
-
-    # Common disease patterns in Vietnamese
-    disease_patterns = [
-        r'(?:bệnh )?(cảm lạnh|cúm|cúm mùa)',
-        r'(?:bệnh )?(?:viêm )?họng(?:\s+cấp)?(?:\s+kích ứng)?',
-        r'(?:bệnh )?(?:viêm )?mũi(?:\s+dị ứng)?',
-        r'(?:bệnh )?(?:viêm )?xoang',
-        r'sốt(?:\s+xuất huyết)?',
-        r'đái tháo đường|tiểu đường',
-        r'cao huyết áp|tăng huyết áp',
-        r'gout|bệnh gút',
-        r'béo phì',
-        r'stress|căng thẳng',
-        r'mất ngủ|khó ngủ',
-        r'táo bón',
-        r'rối loạn tiêu hóa',
-        r'suy dinh dưỡng',
-        r'ho(?:\s+thông thường)?',
-        r'mất nước|thiếu nước',
-    ]
-
-    diseases = []
-    text_lower = text.lower()
-
-    for pattern in disease_patterns:
-        matches = re.finditer(pattern, text_lower)
-        for match in matches:
-            disease = match.group(0)
-            if disease not in diseases:
-                diseases.append(disease)
-
-    return diseases
 
 
 def extract_sources_from_answer(answer: str) -> list:
