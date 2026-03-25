@@ -6,22 +6,33 @@ from pathlib import Path
 from typing import List, Dict
 import sys
 
-# PDF
+# ============================================
+# CƠ CHẾ NHẬP THƯ VIỆN DỰ PHÒNG (GRACEFUL DEGRADATION)
+# ============================================
+# Thay vì import trực tiếp gây lỗi hệ thống nếu môi trường thiếu thư viện,
+# việc dùng try-except giúp hệ thống vẫn chạy được các file .txt cơ bản
+# ngay cả khi chưa cài đặt pypdf hay python-docx.
+
+# Xử lý PDF
 try:
     from pypdf import PdfReader
     HAS_PYPDF = True
-except:
+except ImportError:
     HAS_PYPDF = False
 
-# Word
+# Xử lý Word (.docx)
 try:
     from docx import Document as DocxDocument
     HAS_DOCX = True
-except:
+except ImportError:
     HAS_DOCX = False
 
-# Thêm path để import config
+# Thêm path để import config từ thư mục gốc dự án
 sys.path.append(str(Path(__file__).parent.parent.parent))
+
+# Lớp DocumentLoader đóng vai trò là một "Adapter" (Bộ chuyển đổi) chuẩn hóa dữ liệu.
+# Nhiệm vụ của nó là đọc các định dạng tệp khác nhau (Unstructured Data)
+# và thống nhất chúng về một định dạng cấu trúc duy nhất (Dictionary) để nạp vào RAG.
 
 
 class DocumentLoader:
@@ -35,10 +46,12 @@ class DocumentLoader:
             self.supported_formats.append('.pdf')
         if HAS_DOCX:
             self.supported_formats.extend(['.docx', '.doc'])
+
+        # Mặc định luôn hỗ trợ đọc văn bản thuần tủy (.txt, .md)
         self.supported_formats.extend(['.txt', '.md'])
 
-        print("✅ Document Loader sẵn sàng")
-        print(f"📂 Hỗ trợ: {', '.join(self.supported_formats)}")
+        print("Document Loader san sang")
+        print(f"Ho tro: {', '.join(self.supported_formats)}")
 
     def load_pdf(self, file_path: str) -> Dict:
         """
@@ -51,16 +64,18 @@ class DocumentLoader:
             Dict: {'content': str, 'metadata': dict}
         """
         if not HAS_PYPDF:
-            raise ImportError("Chưa cài đặt pypdf! Run: pip install pypdf")
+            raise ImportError("Chua cai dat pypdf! Run: pip install pypdf")
 
         try:
             reader = PdfReader(file_path)
 
-            # Đọc tất cả trang
+            # Trích xuất toàn bộ văn bản (Text Extraction) từ các trang PDF.
+            # Lưu ý: Pypdf chỉ trích xuất được text, không đọc được text nằm trong hình ảnh (cần OCR).
             content = ""
             for page_num, page in enumerate(reader.pages, 1):
                 text = page.extract_text()
                 if text:
+                    # Đánh dấu phân trang để dễ truy vết (Traceability) sau này
                     content += f"\n--- Trang {page_num} ---\n{text}"
 
             metadata = {
@@ -71,7 +86,7 @@ class DocumentLoader:
                 'format': 'PDF'
             }
 
-            # Thêm metadata từ PDF (nếu có)
+            # Trích xuất siêu dữ liệu (Metadata) ẩn bên trong file PDF nếu có
             if reader.metadata:
                 if reader.metadata.title:
                     metadata['title'] = reader.metadata.title
@@ -79,7 +94,7 @@ class DocumentLoader:
                     metadata['author'] = reader.metadata.author
 
             print(
-                f"✅ Đã đọc PDF: {Path(file_path).name} ({len(reader.pages)} trang)")
+                f"Da doc PDF: {Path(file_path).name} ({len(reader.pages)} trang)")
 
             return {
                 'content': content.strip(),
@@ -87,7 +102,7 @@ class DocumentLoader:
             }
 
         except Exception as e:
-            print(f"❌ Lỗi đọc PDF {file_path}: {e}")
+            print(f"Loi doc PDF {file_path}: {e}")
             return {'content': '', 'metadata': {'error': str(e)}}
 
     def load_docx(self, file_path: str) -> Dict:
@@ -102,12 +117,12 @@ class DocumentLoader:
         """
         if not HAS_DOCX:
             raise ImportError(
-                "Chưa cài đặt python-docx! Run: pip install python-docx")
+                "Chua cai dat python-docx! Run: pip install python-docx")
 
         try:
+            # Giao thức đọc file Word theo từng đoạn văn (Paragraphs)
             doc = DocxDocument(file_path)
 
-            # Đọc tất cả paragraphs
             content = "\n".join(
                 [para.text for para in doc.paragraphs if para.text.strip()])
 
@@ -119,7 +134,7 @@ class DocumentLoader:
                 'format': 'Word'
             }
 
-            print(f"✅ Đã đọc Word: {Path(file_path).name}")
+            print(f"Da doc Word: {Path(file_path).name}")
 
             return {
                 'content': content.strip(),
@@ -127,7 +142,7 @@ class DocumentLoader:
             }
 
         except Exception as e:
-            print(f"❌ Lỗi đọc Word {file_path}: {e}")
+            print(f"Loi doc Word {file_path}: {e}")
             return {'content': '', 'metadata': {'error': str(e)}}
 
     def load_text(self, file_path: str) -> Dict:
@@ -141,6 +156,7 @@ class DocumentLoader:
             Dict: {'content': str, 'metadata': dict}
         """
         try:
+            # Ép buộc mã hóa UTF-8 để đảm bảo đọc đúng tiếng Việt có dấu
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
 
@@ -151,7 +167,7 @@ class DocumentLoader:
                 'format': 'Text'
             }
 
-            print(f"✅ Đã đọc text: {Path(file_path).name}")
+            print(f"Da doc text: {Path(file_path).name}")
 
             return {
                 'content': content.strip(),
@@ -159,9 +175,14 @@ class DocumentLoader:
             }
 
         except Exception as e:
-            print(f"❌ Lỗi đọc text {file_path}: {e}")
+            print(f"Loi doc text {file_path}: {e}")
             return {'content': '', 'metadata': {'error': str(e)}}
 
+    # ============================================
+    # FACTORY METHOD PATTERN (MẪU THIẾT KẾ NHÀ MÁY)
+    # ============================================
+    # Phương thức này hoạt động như một "Bộ định tuyến" (Router).
+    # Nó phân tích đuôi mở rộng của file và tự động gọi hàm xử lý tương ứng.
     def load_file(self, file_path: str) -> Dict:
         """
         Đọc file tự động dựa trên extension
@@ -175,7 +196,7 @@ class DocumentLoader:
         file_path = Path(file_path)
 
         if not file_path.exists():
-            print(f"❌ File không tồn tại: {file_path}")
+            print(f"File khong ton tai: {file_path}")
             return {'content': '', 'metadata': {'error': 'File not found'}}
 
         extension = file_path.suffix.lower()
@@ -187,9 +208,11 @@ class DocumentLoader:
         elif extension in ['.txt', '.md']:
             return self.load_text(str(file_path))
         else:
-            print(f"❌ Không hỗ trợ định dạng: {extension}")
+            print(f"Khong ho tro dinh dang: {extension}")
             return {'content': '', 'metadata': {'error': f'Unsupported format: {extension}'}}
 
+    # Hàm xử lý hàng loạt (Batch Processing) cho phép đọc toàn bộ dữ liệu
+    # trong một thư mục chỉ với một lần gọi hàm.
     def load_directory(
         self,
         directory: str,
@@ -200,7 +223,7 @@ class DocumentLoader:
 
         Args:
             directory: Đường dẫn thư mục
-            recursive: Có đọc thư mục con hay không
+            recursive: Có đọc thư mục con hay không (Duyệt đệ quy)
 
         Returns:
             List[Dict]: Danh sách documents
@@ -208,21 +231,22 @@ class DocumentLoader:
         directory = Path(directory)
 
         if not directory.exists():
-            print(f"❌ Thư mục không tồn tại: {directory}")
+            print(f"Thu muc khong ton tai: {directory}")
             return []
 
         documents = []
 
-        # Pattern để tìm file
+        # Xây dựng chuỗi tìm kiếm đại diện (Glob Pattern)
+        # "**/*" cho phép hệ thống đào sâu vào các thư mục con bên trong.
         pattern = "**/*" if recursive else "*"
 
         for file_path in directory.glob(pattern):
             if file_path.is_file() and file_path.suffix.lower() in self.supported_formats:
                 doc = self.load_file(str(file_path))
-                if doc['content']:  # Chỉ thêm nếu có content
+                if doc['content']:  # Bộ lọc vệ sinh dữ liệu: Bỏ qua các file rỗng
                     documents.append(doc)
 
-        print("\n📚 Tổng kết:")
-        print(f"  - Đã đọc {len(documents)} files từ {directory}")
+        print("\nTong ket:")
+        print(f"  Da doc {len(documents)} files tu {directory}")
 
         return documents

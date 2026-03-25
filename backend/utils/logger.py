@@ -6,9 +6,15 @@ import sys
 from datetime import datetime
 from config.config import config
 
-# Tạo thư mục logs nếu chưa có
+# Tạo thư mục logs tự động nếu chưa tồn tại trên hệ điều hành.
+# Việc lưu log ra file vật lý (File I/O) rất quan trọng để giám sát
+# hoạt động của server và truy vết lỗi (Troubleshooting) sau khi deploy.
 if hasattr(config, 'LOGS_DIR'):
     config.LOGS_DIR.mkdir(parents=True, exist_ok=True)
+
+# Hàm thiết lập (Setup) bộ ghi nhật ký cấu hình chuẩn.
+# Sử dụng mẫu thiết kế Singleton ngầm định của thư viện logging:
+# Cùng một 'name' sẽ luôn trả về cùng một instance của Logger.
 
 
 def setup_logger(name: str, level: str = None) -> logging.Logger:
@@ -22,35 +28,42 @@ def setup_logger(name: str, level: str = None) -> logging.Logger:
     Returns:
         logging.Logger: Configured logger instance
     """
-    # Get log level từ config hoặc dùng mặc định
+    # Trích xuất cấu hình Cấp độ Log (Log Level) từ biến môi trường.
+    # Giúp dễ dàng chuyển đổi giữa môi trường Phát triển (DEBUG) và Sản xuất (INFO/WARNING)
+    # mà không cần sửa code.
     log_level = level or getattr(config, 'LOG_LEVEL', 'INFO')
 
-    # Tạo logger
+    # Khởi tạo đối tượng Logger
     logger = logging.getLogger(name)
     logger.setLevel(getattr(logging, log_level.upper()))
 
-    # Tránh duplicate handlers nếu logger đã được setup
+    # Ngăn chặn hiện tượng Nhân bản Log (Duplicate Handlers).
+    # Xảy ra khi một module được import nhiều lần khiến log bị in ra màn hình lặp đi lặp lại.
     if logger.handlers:
         return logger
 
-    # Console handler
+    # 1. Console Handler: Xử lý luồng xuất dữ liệu ra màn hình Terminal (stdout).
+    # Hỗ trợ quá trình phát triển và theo dõi trực tiếp thời gian thực.
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(logging.DEBUG)
 
-    # Format với emoji và màu sắc
+    # Định dạng (Formatter) cho luồng Console: Tinh gọn, dễ đọc.
     console_format = logging.Formatter(
         '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
     console_handler.setFormatter(console_format)
 
-    # File handler (nếu có LOGS_DIR)
+    # 2. File Handler: Xử lý luồng ghi dữ liệu xuống ổ cứng.
+    # Áp dụng cơ chế Rotating Log cơ bản (Tạo file log mới mỗi ngày).
     if hasattr(config, 'LOGS_DIR'):
         log_file = config.LOGS_DIR / \
             f"chatbot_{datetime.now().strftime('%Y%m%d')}.log"
         file_handler = logging.FileHandler(log_file, encoding='utf-8')
         file_handler.setLevel(logging.INFO)
 
+        # Định dạng cho luồng File: Chi tiết hơn, bao gồm cả tên hàm (funcName)
+        # và số dòng (lineno) để phục vụ việc debug ngoại tuyến (Offline Debugging).
         file_format = logging.Formatter(
             '%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s'
         )
@@ -62,7 +75,7 @@ def setup_logger(name: str, level: str = None) -> logging.Logger:
     return logger
 
 
-# Helper functions để dễ sử dụng
+# Hàm tiện ích (Helper function) dùng để bọc gọn thao tác khởi tạo
 def get_logger(name: str) -> logging.Logger:
     """
     Get or create logger
@@ -76,33 +89,41 @@ def get_logger(name: str) -> logging.Logger:
     return setup_logger(name)
 
 
-# Backward compatibility: Map print-style messages to log levels
+# ============================================
+# CÁC HÀM TIỆN ÍCH GHI LOG CÓ GẮN THẺ (TAGGING)
+# Hỗ trợ backward compatibility với phong cách print cũ nhưng chuyên nghiệp hơn.
+# ============================================
+
 def log_success(logger: logging.Logger, message: str):
-    """Log success message (✅)"""
-    logger.info(f"✅ {message}")
+    """Log success message"""
+    logger.info(f"[THANH CONG] {message}")
 
 
 def log_error(logger: logging.Logger, message: str, exc_info: bool = False):
-    """Log error message (❌)"""
-    logger.error(f"❌ {message}", exc_info=exc_info)
+    """
+    Log error message
+    Tham số exc_info=True cho phép in toàn bộ Call Stack (Traceback) của lỗi,
+    rất hữu ích khi bắt các Exception hệ thống.
+    """
+    logger.error(f"[LOI] {message}", exc_info=exc_info)
 
 
 def log_warning(logger: logging.Logger, message: str):
-    """Log warning message (⚠️)"""
-    logger.warning(f"⚠️ {message}")
+    """Log warning message"""
+    logger.warning(f"[CANH BAO] {message}")
 
 
 def log_info(logger: logging.Logger, message: str):
-    """Log info message (ℹ️)"""
-    logger.info(f"ℹ️ {message}")
+    """Log info message"""
+    logger.info(f"[THONG TIN] {message}")
 
 
 def log_debug(logger: logging.Logger, message: str):
-    """Log debug message (🔍)"""
-    logger.debug(f"🔍 {message}")
+    """Log debug message"""
+    logger.debug(f"[CHI TIET] {message}")
 
 
-# Export
+# Xuất các hàm công khai (Public API) của module
 __all__ = [
     'setup_logger',
     'get_logger',

@@ -15,14 +15,19 @@ import re
 logger = get_logger(__name__)
 
 # ============================================
-# QUERY INTENT DETECTION (REQUIREMENT 2: SMART RETRIEVAL)
+# QUERY INTENT DETECTION (PHÁT HIỆN Ý ĐỊNH TRUY VẤN - BÀI TOÁN TỐI ƯU HÓA)
 # ============================================
+
+# Lớp QueryIntent đóng vai trò là một bộ phân loại văn bản (Text Classifier) bằng Regex.
+# Trước khi đưa câu hỏi vào không gian Vector, hệ thống sẽ cố gắng hiểu xem người dùng
+# đang thực sự muốn hỏi về khía cạnh nào của bệnh (Triệu chứng, Điều trị, Phòng ngừa...).
 
 
 class QueryIntent:
     """Phát hiện intent của query để tối ưu retrieval"""
 
-    # Intent patterns for Vietnamese health queries
+    # Cấu trúc từ điển lưu trữ các mẫu biểu thức chính quy (Regex Patterns)
+    # được tinh chỉnh (fine-tuned) riêng cho ngữ cảnh y tế tiếng Việt.
     INTENT_PATTERNS = {
         'symptom': [
             r'triệu chứng',
@@ -82,7 +87,8 @@ class QueryIntent:
         ]
     }
 
-    # Section keywords to boost based on intent
+    # Bảng ánh xạ: Khi đã xác định được Intent, hệ thống sẽ sử dụng các từ khóa này
+    # để tăng điểm (Boost) cho các đoạn văn bản (chunks) có tiêu đề (Section) tương ứng.
     SECTION_BOOST = {
         'symptom': ['dấu hiệu', 'triệu chứng', 'biểu hiện', 'nhận biết'],
         'cause': ['nguyên nhân', 'yếu tố nguy cơ', 'tại sao', 'do đâu'],
@@ -93,14 +99,7 @@ class QueryIntent:
 
     @staticmethod
     def detect_intent(query: str) -> List[str]:
-        """Phát hiện intent từ query (có thể có nhiều intent)
-
-        Args:
-            query: Câu hỏi
-
-        Returns:
-            List[str]: Danh sách intent detected
-        """
+        """Phát hiện intent từ query (có thể có nhiều intent)"""
         query_lower = query.lower()
         detected_intents = []
 
@@ -114,14 +113,7 @@ class QueryIntent:
 
     @staticmethod
     def get_section_keywords(intents: List[str]) -> List[str]:
-        """Lấy keywords để boost sections dựa trên intent
-
-        Args:
-            intents: Danh sách intent
-
-        Returns:
-            List[str]: Keywords để boost
-        """
+        """Lấy keywords để boost sections dựa trên intent"""
         keywords = []
         for intent in intents:
             if intent in QueryIntent.SECTION_BOOST:
@@ -130,19 +122,24 @@ class QueryIntent:
 
 
 # ============================================
-# DISEASE-SPECIFIC KEYWORD BOOSTING (TASK 3)
+# DISEASE-SPECIFIC KEYWORD BOOSTING (TĂNG TRỌNG SỐ THEO BỆNH ĐÍCH)
 # ============================================
 
+# Lớp này giải quyết triệt để lỗi "Râu ông nọ cắm cằm bà kia".
+# Nếu người dùng đã gõ đích danh tên một bệnh (vd: Sốt xuất huyết),
+# hệ thống phải ép thuật toán tìm kiếm ưu tiên lấy tài liệu của đúng bệnh đó.
 class DiseaseDetector:
     """Detect specific diseases in query for targeted retrieval"""
 
-    # Disease name to filename mapping
-    # QUAN TRỌNG: Cụm từ DÀI HƠN phải đứng trước cụm ngắn hơn trong dict
-    # vì detect_diseases duyệt theo thứ tự và dừng khi khớp
+    # Cấu trúc từ điển (Dictionary) ánh xạ từ khóa bệnh lý sang tên file văn bản.
+    # [QUAN TRỌNG VỀ THUẬT TOÁN]: Các cụm từ dài/cụ thể (như 'viêm họng kích ứng')
+    # BẮT BUỘC phải khai báo trước các cụm từ ngắn ('viêm họng') để tránh lỗi Nuốt từ (Shadowing)
+    # trong quá trình duyệt vòng lặp.
     DISEASE_TO_FILE = {
-        # ── Cụm dài/cụ thể trước ──────────────────────────────────
+        # Cụm dài/cụ thể trước
         'viêm họng kích ứng': 'viem_hong_kich_ung.txt',
         'viêm họng cấp': 'viem_hong_cap.txt',
+        'đau họng': 'viem_hong_cap.txt',
         'viêm mũi dị ứng': 'viem_mui_di_ung.txt',
         'viêm da cơ địa': 'viem_da_co_dia.txt',
         'viêm kết mạc': 'viem_ket_mac.txt',
@@ -199,7 +196,8 @@ class DiseaseDetector:
         'khó ngủ': 'mat_ngu.txt',
         'táo bón': 'tao_bon_chuc_nang.txt',
         'bệnh gút': 'Gout.txt',
-        # ── Cụm ngắn sau (tránh match sớm) ───────────────────────
+
+        # Cụm ngắn sau (tránh match sớm)
         'viêm xoang': 'viem_xoang.txt',
         'xoang': 'viem_xoang.txt',
         'viêm họng': 'viem_hong_cap.txt',
@@ -213,9 +211,10 @@ class DiseaseDetector:
         'hen': 'hen_phe_quan.txt',
         'cúm': 'cum_mua.txt',
         'influenza': 'cum_mua.txt',
-        # ── Symptom combination keywords ─────────────────────────
+
+        # Nhóm từ khóa kết hợp (Symptom combination keywords)
         # Cho phép detect dựa trên combo triệu chứng đặc trưng của bệnh
-        'chóng mặt': 'sot_xuat_huyet.txt',  # sốt xuất huyết hay có chóng mặt
+        'chóng mặt': 'sot_xuat_huyet.txt',
         'phát ban': 'sot_xuat_huyet.txt',
         'xuất huyết': 'sot_xuat_huyet.txt',
         'đau khớp': 'Gout.txt',
@@ -227,40 +226,33 @@ class DiseaseDetector:
 
     @staticmethod
     def detect_diseases(query: str) -> List[str]:
-        """Detect disease keywords in query and return target filenames
-
-        Args:
-            query: User query
-
-        Returns:
-            List[str]: Target filenames to boost
-        """
+        """Detect disease keywords in query and return target filenames"""
         query_lower = query.lower()
         target_files = []
 
-        # Sắp xếp theo độ dài keyword giảm dần để cụm dài (cụ thể hơn) khớp trước
-        # Ví dụ: "viêm họng kích ứng" khớp trước "viêm họng" với cùng query
+        # Sắp xếp từ khóa theo độ dài giảm dần bằng hàm lambda.
+        # Đảm bảo các cụm từ đa âm tiết luôn được ưu tiên bắt khớp trước cụm đơn âm tiết.
         sorted_keywords = sorted(
             DiseaseDetector.DISEASE_TO_FILE.items(),
             key=lambda x: len(x[0]),
             reverse=True
         )
 
-        matched_spans = []  # Theo dõi vị trí đã khớp để tránh khớp chồng chéo
+        # Mảng lưu vết để xử lý hiện tượng chồng lấp (Overlapping Spans)
+        matched_spans = []
 
         for disease_keyword, filename in sorted_keywords:
             idx = query_lower.find(disease_keyword)
             if idx == -1:
                 continue
 
-            # Kiểm tra xem vị trí này có bị chồng lên khớp dài hơn không
             span = (idx, idx + len(disease_keyword))
             overlaps = any(
                 not (span[1] <= s[0] or span[0] >= s[1])
                 for s in matched_spans
             )
             if overlaps:
-                continue  # Bỏ qua cụm ngắn nếu đã có cụm dài khớp ở cùng vị trí
+                continue
 
             matched_spans.append(span)
             if filename not in target_files:
@@ -273,13 +265,16 @@ class DiseaseDetector:
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 
+# Lớp RAGRetriever đóng vai trò "Bộ máy Tìm kiếm cốt lõi".
+# Chuyển đổi mô hình từ Truy xuất Đơn lớp (Chỉ dùng FAISS) sang Truy xuất Lai (Hybrid Retrieval),
+# kết hợp cả Dense Search (Vector) và Sparse Search (Keyword/Từ khóa BM25).
 class RAGRetriever:
     """
     Hybrid Retriever: Dense (FAISS) + Sparse (BM25) + RRF
 
     Sử dụng Reciprocal Rank Fusion để kết hợp điểm từ:
-    - Dense Retrieval: FAISS vector search (semantic similarity)
-    - Sparse Retrieval: BM25 keyword matching (lexical similarity)
+    - Dense Retrieval: FAISS vector search (semantic similarity - Khớp ý nghĩa)
+    - Sparse Retrieval: BM25 keyword matching (lexical similarity - Khớp chính xác từ vựng)
     """
 
     def __init__(
@@ -288,93 +283,75 @@ class RAGRetriever:
         embedder: EmbeddingModel = None,
         top_k: int = None
     ):
-        """
-        Khởi tạo Hybrid Retriever
-
-        Args:
-            vector_store: Vector store instance (nếu None sẽ tạo mới)
-            embedder: Embedding model (nếu None sẽ tạo mới)
-            top_k: Số documents trả về
-        """
+        """Khởi tạo Hybrid Retriever"""
         self.top_k = top_k or config.TOP_K_RETRIEVAL
 
-        # Khởi tạo embedder (Dense Retrieval)
+        # Khởi tạo mô hình học sâu sinh Vector
         if embedder:
             self.embedder = embedder
         else:
             if config.DEBUG:
-                logger.debug("⏳ Đang khởi tạo Embedding Model...")
+                logger.debug("Dang khoi tao Embedding Model...")
             self.embedder = EmbeddingModel(use_vietnamese=True)
 
-        # Khởi tạo vector store (Dense Retrieval)
+        # Khởi tạo Cơ sở dữ liệu Vector (FAISS)
         if vector_store:
             self.vector_store = vector_store
         else:
             if config.DEBUG:
-                logger.debug("⏳ Đang khởi tạo Vector Store...")
+                logger.debug("Dang khoi tao Vector Store...")
             self.vector_store = VectorStore(
                 dimension=self.embedder.embedding_dim)
             self.load_vector_store()
 
         # ============================================
-        # BM25 SPARSE RETRIEVAL (NEW)
+        # BM25 SPARSE RETRIEVAL (CƠ CHẾ TÌM KIẾM THƯA BẰNG TỪ KHÓA)
         # ============================================
-        # Corpus: danh sách documents để build BM25 index
-        self.bm25_corpus = []  # List[List[str]] - tokenized documents
-        self.bm25_model = None  # BM25Okapi instance
+        # Corpus: danh sách toàn bộ văn bản (đã tokenized) để huấn luyện mô hình BM25.
+        self.bm25_corpus = []
+        self.bm25_model = None
         self._build_bm25_index()
 
         if config.DEBUG:
-            logger.info(f"✅ Hybrid Retriever sẵn sàng! (Top-K: {self.top_k})")
+            logger.info(f"Hybrid Retriever san sang! (Top-K: {self.top_k})")
             logger.info(
-                f"   Dense: FAISS ({self.vector_store.index.ntotal} docs)")
-            logger.info(f"   Sparse: BM25 ({len(self.bm25_corpus)} docs)")
+                f"  Dense: FAISS ({self.vector_store.index.ntotal} docs)")
+            logger.info(f"  Sparse: BM25 ({len(self.bm25_corpus)} docs)")
 
     def _tokenize_text(self, text: str) -> List[str]:
-        """
-        Tokenize text cho BM25 (simple whitespace splitting)
-
-        Args:
-            text: Input text
-
-        Returns:
-            List[str]: Danh sách tokens
-        """
-        # Simple tokenization: lowercase + split by whitespace
+        """Tokenize text cho BM25 (simple whitespace splitting)"""
+        # Tách từ cơ bản dựa trên khoảng trắng.
+        # Đối với tiếng Việt, nếu sau này muốn tối ưu BM25 tốt hơn nữa,
+        # có thể thay thế bằng Underthesea tại bước này.
         return text.lower().split()
 
     def _build_bm25_index(self):
         """
         Build BM25 index từ documents trong vector store
-
-        Gọi sau khi load vector store để đồng bộ corpus
+        Đảm bảo cả Dense và Sparse đang quét trên cùng một nguồn dữ liệu (Corpus).
         """
         if not hasattr(self.vector_store, 'documents') or not self.vector_store.documents:
             logger.warning(
-                "⚠️  Vector store chưa có documents, bỏ qua BM25 indexing")
+                "Vector store chua co documents, bo qua BM25 indexing")
             self.bm25_corpus = []
             self.bm25_model = None
             return
 
-        logger.info("🔨 Đang build BM25 index...")
+        logger.info("Dang build BM25 index...")
 
-        # Tokenize tất cả documents
         self.bm25_corpus = [
             self._tokenize_text(doc.get('content', ''))
             for doc in self.vector_store.documents
         ]
 
-        # Build BM25 model
+        # Khởi tạo mô hình BM25Okapi với tập dữ liệu.
         self.bm25_model = BM25Okapi(self.bm25_corpus)
 
         logger.info(
-            f"✅ BM25 index đã sẵn sàng: {len(self.bm25_corpus)} documents")
+            f"BM25 index da san sang: {len(self.bm25_corpus)} documents")
 
     def _extract_disease_keywords(self, query: str) -> List[str]:
-        """Backward-compatible disease keyword extraction for legacy tests/callers.
-
-        Returns matched disease phrases from query text (not filenames).
-        """
+        """Backward-compatible disease keyword extraction for legacy tests/callers."""
         if not query:
             return []
 
@@ -382,7 +359,6 @@ class RAGRetriever:
         matched_keywords = []
         matched_spans = []
 
-        # Match longer phrases first to avoid short-keyword shadowing.
         sorted_keywords = sorted(
             DiseaseDetector.DISEASE_TO_FILE.keys(),
             key=len,
@@ -408,15 +384,7 @@ class RAGRetriever:
         return matched_keywords
 
     def load_vector_store(self, path: str = None) -> bool:
-        """
-        Load vector store từ file
-
-        Args:
-            path: Đường dẫn (nếu None dùng path mặc định)
-
-        Returns:
-            bool: True nếu load thành công
-        """
+        """Load vector store từ file"""
         load_path = path or str(
             config.VECTOR_STORE_DIR / "health_faiss.index")
         success = self.vector_store.load(load_path)
@@ -424,64 +392,52 @@ class RAGRetriever:
         if success:
             if config.DEBUG:
                 logger.debug(
-                    f"✅ Đã load vector store: {self.vector_store.index.ntotal} documents")
+                    f"Da load vector store: {self.vector_store.index.ntotal} documents")
         else:
             if config.DEBUG:
                 logger.debug(
-                    "⚠️  Chưa có vector store. Hãy build trước bằng build_rag_pipeline.py")
+                    "Chua co vector store. Hay build truoc bang build_rag_pipeline.py")
 
         return success
 
+    # Hàm truy xuất cốt lõi. Áp dụng quy trình phức hợp 6 bước (Pipeline)
+    # để đảm bảo tài liệu đầu ra luôn chuẩn xác nhất có thể.
     def retrieve(self, query: str, top_k: int = None, apply_threshold: bool = True) -> List[Dict]:
         """
         HYBRID RETRIEVAL với RRF (Reciprocal Rank Fusion) + SMART SECTION BOOSTING
 
         Pipeline:
-        1. Query Intent Detection → Identify user's information need
-        2. Dense Retrieval: FAISS semantic search → ranks
-        3. Sparse Retrieval: BM25 keyword matching → ranks
-        4. Section Boosting: Prioritize sections matching query intent
-        5. RRF Fusion: Combine rankings with intent-aware boosting
-        6. Re-rank và trả về top-K documents
-
-        Args:
-            query: Câu hỏi/query
-            top_k: Số documents trả về (nếu None dùng self.top_k)
-            apply_threshold: Có áp dụng relevance threshold không
-
-        Returns:
-            List[Dict]: Documents với RRF score, sorted by relevance (high → low)
+        1. Query Intent Detection -> Nhận diện ý định câu hỏi.
+        2. Dense Retrieval (FAISS) -> Tìm kiếm theo ngữ nghĩa vector.
+        3. Sparse Retrieval (BM25) -> Tìm kiếm theo từ khóa thô.
+        4. Section Boosting -> Phạt/Thưởng điểm các tài liệu khớp ý định.
+        5. RRF Fusion -> Dung hợp thứ hạng từ 2 hệ thống tìm kiếm.
+        6. Re-rank -> Sắp xếp lại và lọc tính đa dạng (Diversity Filter).
         """
         k = top_k or self.top_k
 
-        # ============================================
-        # 1. QUERY INTENT DETECTION (REQUIREMENT 2)
-        # ============================================
+        # Bước 1: NHẬN DIỆN Ý ĐỊNH
         detected_intents = QueryIntent.detect_intent(query)
         section_keywords = QueryIntent.get_section_keywords(detected_intents)
 
         if config.DEBUG:
-            logger.debug(f"\n🎯 Detected Intents: {detected_intents}")
-            logger.debug(f"📋 Section Keywords: {section_keywords}")
+            logger.debug(f"\n Detected Intents: {detected_intents}")
+            logger.debug(f" Section Keywords: {section_keywords}")
 
-        # ============================================
-        # 1.5. DISEASE-SPECIFIC DETECTION (TASK 3)
-        # ============================================
+        # Bước 1.5: PHÁT HIỆN TÊN BỆNH CỤ THỂ ĐỂ TARGET
         target_diseases = DiseaseDetector.detect_diseases(query)
 
         if config.DEBUG and target_diseases:
-            logger.debug(f"🎯 Target Diseases Detected: {target_diseases}")
+            logger.debug(f" Target Diseases Detected: {target_diseases}")
 
-        # ============================================
-        # 2. QUERY NORMALIZATION
-        # ============================================
+        # Bước 2: CHUẨN HÓA VÀ MỞ RỘNG TRUY VẤN (QUERY EXPANSION)
         normalized_query = normalize_query(query)
         query_for_search = normalized_query if normalized_query else query
 
-        # Query expansion cho dạng "X là dấu hiệu của bệnh gì?" — trích xuất
-        # riêng phần triệu chứng để BM25 match rộng hơn trong tài liệu.
+        # Nếu người dùng hỏi dạng "X là dấu hiệu của bệnh gì?",
+        # hệ thống tự động bóc tách phần râu ria, chỉ giữ lại "triệu chứng X"
+        # để nạp vào hệ thống tìm kiếm, giúp tăng độ mở (Recall).
         if 'disease_from_symptom' in detected_intents:
-            # Loại bỏ phần hỏi, giữ lại triệu chứng thuần
             symptom_part = re.sub(
                 r'\s*(là|có thể là|có phải là)?\s*(dấu hiệu|triệu chứng|biểu hiện)?\s*'
                 r'(của)?\s*(bệnh gì|bệnh nào|những bệnh gì)[?.]?\s*$',
@@ -490,140 +446,130 @@ class RAGRetriever:
                 query_for_search = symptom_part
                 if config.DEBUG:
                     logger.debug(
-                        f"🔍 Query expanded (symptom only): '{query_for_search}'")
+                        f" Query expanded (symptom only): '{query_for_search}'")
 
         if config.DEBUG:
-            logger.debug(f"\n🔍 Original Query: '{query}'")
+            logger.debug(f"\n Original Query: '{query}'")
             if normalized_query != query.lower().strip():
-                logger.debug(f"🔍 Normalized Query: '{query_for_search}'")
+                logger.debug(f" Normalized Query: '{query_for_search}'")
 
         # ============================================
-        # 2. DENSE RETRIEVAL (FAISS) - TWO-STAGE APPROACH
+        # TÌM KIẾM DENSE (FAISS VECTOR SEARCH)
         # ============================================
         query_embedding = self.embedder.encode_text(query_for_search)
 
-        # Stage 1: Retrieve more candidates for better recall
-        # Use TOP_K_INITIAL (12) to ensure we capture all relevant diseases
+        # Lấy dải truy xuất ban đầu (Initial Retrieval) rộng hơn Top-K
+        # để đảm bảo không lọt mất tài liệu tốt.
         candidate_size = config.TOP_K_INITIAL if hasattr(
             config, 'TOP_K_INITIAL') else max(k * 2, 12)
 
         if config.DEBUG:
-            logger.debug(f"📊 Stage 1: Retrieving {candidate_size} candidates")
+            logger.debug(f" Stage 1: Retrieving {candidate_size} candidates")
 
         dense_results = self.vector_store.search(
             query_embedding, top_k=candidate_size)
 
-        # Tạo dense ranking: {doc_id: rank} (1-indexed)
+        # Trích xuất và lưu thứ hạng (Rank) của FAISS vào biến dense_ranks.
         dense_ranks = {}
         for rank, doc in enumerate(dense_results, start=1):
-            doc_id = id(doc)  # Unique ID cho document
+            doc_id = id(doc)
             dense_ranks[doc_id] = rank
-            doc['_doc_id'] = doc_id  # Lưu lại để map sau
+            doc['_doc_id'] = doc_id
 
         if config.DEBUG:
             logger.debug(
-                f"📊 Dense (FAISS): Retrieved {len(dense_results)} candidates")
+                f" Dense (FAISS): Retrieved {len(dense_results)} candidates")
 
         # ============================================
-        # 3. SPARSE RETRIEVAL (BM25)
+        # TÌM KIẾM SPARSE (BM25 KEYWORD MATCHING)
         # ============================================
         sparse_ranks = {}
-        _bm25_doc_map = {}  # Luôn khởi tạo để tránh NameError khi BM25 chưa sẵn sàng
+        _bm25_doc_map = {}
 
         if self.bm25_model and self.bm25_corpus:
-            # Tokenize query
             query_tokens = self._tokenize_text(query_for_search)
-
-            # BM25 scoring: Calculate scores for all documents
             bm25_scores = self.bm25_model.get_scores(query_tokens)
 
-            # Tạo list (score, doc_index) và sort by score descending
+            # Sắp xếp điểm số BM25 theo thứ tự giảm dần
             scored_docs = [(score, idx)
                            for idx, score in enumerate(bm25_scores)]
             scored_docs.sort(reverse=True, key=lambda x: x[0])
 
-            # Lấy top candidate_size và gán ranks
-            # Đồng thời lưu lại map doc_id → document để dùng khi build final_results
             _bm25_doc_map = {}
             for rank, (score, doc_idx) in enumerate(scored_docs[:candidate_size], start=1):
                 if doc_idx < len(self.vector_store.documents):
                     doc = self.vector_store.documents[doc_idx]
                     doc_id = id(doc)
                     sparse_ranks[doc_id] = rank
-                    # Lưu để có thể thêm vào final_results
                     _bm25_doc_map[doc_id] = doc
 
             if config.DEBUG:
                 logger.debug(
-                    f"📊 Sparse (BM25): Scored {len(sparse_ranks)} documents")
+                    f" Sparse (BM25): Scored {len(sparse_ranks)} documents")
         else:
             if config.DEBUG:
                 logger.warning(
-                    "⚠️  BM25 chưa khởi tạo, chỉ dùng Dense retrieval")
+                    " BM25 chua khoi tao, chi dung Dense retrieval")
 
         # ============================================
-        # 4. RRF FUSION WITH SECTION BOOSTING (REQUIREMENTS 2, 5)
+        # DUNG HỢP RECIPROCAL RANK FUSION (RRF) VÀ TĂNG TRỌNG SỐ
         # ============================================
-        rrf_k = config.RRF_K  # Default: 60
+        # Hằng số làm mượt (Smoothing constant), thường = 60
+        rrf_k = config.RRF_K
         rrf_scores = {}
 
-        # Tính RRF score cho tất cả documents xuất hiện trong dense hoặc sparse
         all_doc_ids = set(dense_ranks.keys()) | set(sparse_ranks.keys())
 
-        # Map doc_id → document cho cả FAISS và BM25 để boost
         _dense_doc_map = {
             doc.get('_doc_id'): doc for doc in dense_results if doc.get('_doc_id')}
         _all_doc_map = {**_dense_doc_map, **_bm25_doc_map}
 
         for doc_id in all_doc_ids:
-            # Nếu không có trong dense → rank rất thấp
+            # Nếu tài liệu chỉ xuất hiện ở một thuật toán, thuật toán kia sẽ cho rank = vô cực (1e9)
             dense_rank = dense_ranks.get(doc_id, 1e9)
-            # Nếu không có trong sparse → rank rất thấp
             sparse_rank = sparse_ranks.get(doc_id, 1e9)
 
-            # RRF formula base score
+            # Công thức cốt lõi của thuật toán RRF: Điểm số = 1/(k + Rank_Dense) + 1/(k + Rank_Sparse)
             rrf_score = (1.0 / (rrf_k + dense_rank)) + \
                 (1.0 / (rrf_k + sparse_rank))
 
-            # Tìm document từ map tổng hợp (FAISS + BM25)
             doc = _all_doc_map.get(doc_id)
 
-            # ✅ SMART SECTION BOOSTING (REQUIREMENT 2)
+            # [THUẬT TOÁN ĐIỀU CHỈNH ĐIỂM SỐ]: Tăng trọng số cho mục tương ứng với Ý định (Intent)
             if section_keywords and doc:
                 content = doc.get('content', '').lower()
                 metadata = doc.get('metadata', {})
                 section_title = metadata.get('section_title', '').lower()
                 boost_factor = 1.0
                 for keyword in section_keywords:
+                    # Tăng 15% điểm nếu cụm từ ý định xuất hiện trong Tiêu đề hoặc Đầu đoạn văn.
                     if keyword.lower() in section_title or keyword.lower() in content[:200]:
                         boost_factor += 0.15
                 if boost_factor > 1.0:
                     rrf_score *= boost_factor
                     if config.DEBUG:
                         logger.debug(
-                            f"🎯 Section boost: {boost_factor:.2f}x for {metadata.get('source', 'Unknown')}")
+                            f" Section boost: {boost_factor:.2f}x for {metadata.get('source', 'Unknown')}")
 
-            # ✅ DISEASE-SPECIFIC BOOSTING (TASK 3)
-            # Áp dụng cho cả FAISS và BM25-only docs
+            # [THUẬT TOÁN ĐIỀU CHỈNH ĐIỂM SỐ]: Tăng mạnh (2x) cho tài liệu khớp đích danh tên bệnh.
             if target_diseases and doc:
                 source = doc.get('metadata', {}).get('source', '')
                 if source in target_diseases:
-                    disease_boost = 2.0  # Tăng từ 1.5x lên 2.0x để đảm bảo thắng
+                    # Đảm bảo các tài liệu về bệnh này leo lên đầu mảng.
+                    disease_boost = 1.3
                     rrf_score *= disease_boost
                     if config.DEBUG:
                         logger.debug(
-                            f"🎯 Disease boost: {disease_boost:.2f}x for {source}")
+                            f" Disease boost: {disease_boost:.2f}x for {source}")
 
             rrf_scores[doc_id] = rrf_score
 
         # ============================================
-        # 5. RE-RANK VÀ FORMAT KẾT QUẢ
+        # SẮP XẾP LẠI (RE-RANK) VÀ ĐÓNG GÓI KẾT QUẢ
         # ============================================
-        # Tạo final results: FAISS docs + BM25-only docs
         final_results = []
         _added_doc_ids = set()
 
-        # Bước 1: Thêm FAISS docs (có L2 distance)
         for doc in dense_results:
             doc_id = doc.get('_doc_id')
             if doc_id in rrf_scores:
@@ -634,29 +580,27 @@ class RAGRetriever:
                 final_results.append(doc_copy)
                 _added_doc_ids.add(doc_id)
 
-        # Bước 2: Thêm BM25-only docs (không có trong FAISS top-20)
-        # Đây là fix quan trọng: nếu BM25 tìm thấy file liên quan mà FAISS bỏ sót,
-        # vẫn đưa vào kết quả với dense_score = 0 để bypass L2 threshold.
+        # Trường hợp Đặc biệt: Bổ sung các tài liệu CHỈ có trong BM25 (BM25-only)
+        # Giúp cứu lại các văn bản bị FAISS bỏ sót nhưng chứa chính xác từ khóa người dùng gõ.
         for doc_id, doc in _bm25_doc_map.items():
             if doc_id not in _added_doc_ids and doc_id in rrf_scores:
                 doc_copy = doc.copy()
                 doc_copy['rrf_score'] = rrf_scores[doc_id]
                 doc_copy.pop('_doc_id', None)
-                # BM25-only: không có L2 distance → dùng 0.0 để bypass threshold
+                # Gán điểm Dense giả = 0.0 để lách qua bộ lọc L2 Threshold (vốn chỉ xét khoảng cách Dense)
                 doc_copy['dense_score'] = 0.0
                 doc_copy['_bm25_only'] = True
                 final_results.append(doc_copy)
                 if config.DEBUG:
                     src = doc.get('metadata', {}).get('source', 'Unknown')
                     logger.debug(
-                        f"➕ BM25-only doc added: {src} (RRF: {rrf_scores[doc_id]:.6f})")
+                        f" BM25-only doc added: {src} (RRF: {rrf_scores[doc_id]:.6f})")
 
-        # Sort by RRF score (descending - higher is better)
+        # Sắp xếp mảng kết quả cuối cùng theo điểm RRF (giảm dần)
         final_results.sort(key=lambda x: x.get('rrf_score', 0), reverse=True)
 
         if config.DEBUG:
-            logger.debug("\n📊 Stage 2: RRF ranked candidates")
-            # Show top 10 before filtering
+            logger.debug("\n Stage 2: RRF ranked candidates")
             for i, doc in enumerate(final_results[:10], 1):
                 rrf = doc.get('rrf_score', 0)
                 dense = doc.get('dense_score', 999)
@@ -665,36 +609,34 @@ class RAGRetriever:
                     f"  [{i}] RRF: {rrf:.6f} | Dense: {dense:.4f} | {source}")
 
         # ============================================
-        # 6. STAGE 3: THRESHOLD FILTERING + CONTEXT DIVERSITY (REQUIREMENTS 5, 9)
+        # BỘ LỌC NGƯỠNG VÀ TÍNH ĐA DẠNG (THRESHOLD & DIVERSITY FILTERING)
         # ============================================
-        # Apply L2 distance threshold to filter irrelevant documents
         if apply_threshold:
-            # ✅ FIX CRITICAL BUG: Use correct config attribute name
             threshold = config.RELEVANCE_THRESHOLD
-            # BM25-only docs bypass L2 threshold (dense_score=0.0 đã đánh dấu)
+
+            # Cắt bỏ các tài liệu có khoảng cách L2 (dense_score) cao hơn ngưỡng cho phép.
             filtered = [doc for doc in final_results
                         if doc.get('_bm25_only') or doc.get('dense_score', 999) <= threshold]
 
             if config.DEBUG:
                 logger.debug(
-                    f"\n⚡ Stage 3: L2 Threshold Filtering ({threshold})")
-                logger.debug(f"✅ Kept: {len(filtered)} docs")
+                    f"\n Stage 3: L2 Threshold Filtering ({threshold})")
+                logger.debug(f" Kept: {len(filtered)} docs")
                 logger.debug(
-                    f"❌ Removed: {len(final_results) - len(filtered)} docs")
+                    f" Removed: {len(final_results) - len(filtered)} docs")
 
-            # If no documents pass threshold, return empty
             if not filtered:
-                logger.warning("⚠️  No documents passed relevance threshold")
+                logger.warning(" No documents passed relevance threshold")
                 return []
 
-            # ✅ CONTEXT DIVERSITY VALIDATION (REQUIREMENT 5)
-            # Ensure diverse sections: Limit chunks per source
-            # Prefer retrieving different sections from same document vs multiple same sections
+            # Kích hoạt bộ lọc đa dạng nguồn (Diversity Filter).
+            # Ngăn chặn trường hợp Top 3 tài liệu trả về đều trích xuất từ CÙNG 1 file,
+            # đảm bảo người dùng có được bức tranh tổng thể đa chiều.
             final_output = self._apply_diversity_filter(filtered, k)
 
             if config.DEBUG:
                 logger.debug(
-                    f"\n🎯 FINAL OUTPUT: Top-{k} documents after diversity filtering")
+                    f"\n FINAL OUTPUT: Top-{k} documents after diversity filtering")
                 for i, doc in enumerate(final_output, 1):
                     rrf = doc.get('rrf_score', 0)
                     dense = doc.get('dense_score', 999)
@@ -704,32 +646,32 @@ class RAGRetriever:
                     logger.debug(
                         f"  [{i}] RRF: {rrf:.6f} | Dense: {dense:.4f} | {source} | {section}")
 
+            # KIỂM SOÁT ĐÍCH DANH BỆNH (SINGLE DISEASE FOCUS)
+            # Nếu người dùng hỏi đúng 1 bệnh duy nhất, loại bỏ hoàn toàn các tài liệu
+            # của các bệnh khác ra khỏi danh sách kết quả, đảm bảo tính trong sạch của Context.
+            if target_diseases and len(target_diseases) == 1:
+                target = target_diseases[0]
+
+                focused_docs = [
+                    doc for doc in final_output
+                    if doc.get('metadata', {}).get('source') == target
+                ]
+
+                if len(focused_docs) >= 1:
+                    if config.DEBUG:
+                        logger.debug(
+                            f" Single-disease focus applied: {target}")
+                    final_output = focused_docs[:k]
+
             return final_output
 
-        # If threshold not applied, return top-k
         return final_results[:k]
 
     def _apply_diversity_filter(self, docs: List[Dict], max_results: int) -> List[Dict]:
-        """Apply diversity filter to prioritize DIFFERENT SOURCES (diseases) over same source
-
-        CRITICAL FIX for PROBLEM 2 & 3:
-        - Prioritize retrieving chunks from DIFFERENT diseases/files
-        - For symptom queries, we want ALL relevant diseases, not 3 chunks from same disease
-        - Example: "sốt và đau đầu" should return chunks from: cum_mua.txt, cam_lanh.txt, 
-          sot_xuat_huyet.txt, viem_xoang.txt (4 different diseases)
-        - NOT: 3 chunks from cum_mua.txt only
-
-        Args:
-            docs: Sorted documents by relevance
-            max_results: Maximum number to return
-
-        Returns:
-            List[Dict]: Diversified results favoring different sources
-        """
+        """Apply diversity filter to prioritize DIFFERENT SOURCES (diseases) over same source"""
         if len(docs) <= max_results:
             return docs
 
-        # Track: source -> list of docs from that source
         source_docs = {}
         for doc in docs:
             source = doc.get('metadata', {}).get('source', 'Unknown')
@@ -739,8 +681,8 @@ class RAGRetriever:
 
         selected = []
 
-        # STRATEGY 1: First pass - take 1 chunk from each unique source (prioritize diversity)
-        # This ensures we get chunks from ALL relevant diseases
+        # CHIẾN LƯỢC 1 (Ưu tiên bề rộng): Lấy 1 Chunk từ TỪNG bệnh khác nhau.
+        # Đảm bảo câu hỏi bắt bệnh như "sốt và đau đầu" sẽ truy xuất đủ Cúm mùa, Sốt xuất huyết...
         sources_used = set()
         for doc in docs:
             if len(selected) >= max_results:
@@ -750,10 +692,11 @@ class RAGRetriever:
                 selected.append(doc)
                 sources_used.add(source)
                 if config.DEBUG:
-                    logger.debug(f"  ✓ Added first chunk from: {source}")
+                    logger.debug(f"  Added first chunk from: {source}")
 
-        # STRATEGY 2: Second pass - add 2nd chunk from sources if space available
-        # Only add if it's a DIFFERENT section (not duplicate content)
+        # CHIẾN LƯỢC 2 (Khai thác chiều sâu): Nếu còn dư slot Top-K, nạp tiếp Chunk thứ 2
+        # của các bệnh đã chọn, NHƯNG phải chắc chắn Chunk đó thuộc về Section khác
+        # (Ví dụ: Không được nạp 2 đoạn của mục "Triệu chứng").
         if len(selected) < max_results:
             source_sections = {s: set() for s in sources_used}
             for doc in selected:
@@ -764,23 +707,22 @@ class RAGRetriever:
             for source in sources_used:
                 if len(selected) >= max_results:
                     break
-                # Find docs from this source not yet selected
                 remaining_docs = [
                     d for d in source_docs[source] if d not in selected]
                 for doc in remaining_docs:
                     if len(selected) >= max_results:
                         break
                     section = doc.get('metadata', {}).get('section_title', '')
-                    # Only add if different section OR highly relevant
                     if section not in source_sections[source]:
                         selected.append(doc)
                         source_sections[source].add(section)
                         if config.DEBUG:
                             logger.debug(
-                                f"  ✓ Added 2nd chunk from: {source} (section: {section})")
+                                f"  Added 2nd chunk from: {source} (section: {section})")
                         break
 
-        # STRATEGY 3: Fill remaining slots with highest scoring docs (quality over diversity)
+        # CHIẾN LƯỢC 3 (Dự phòng): Nếu qua 2 bước lọc trên mà vẫn chưa đủ số lượng Max Results,
+        # lấp đầy bằng các Chunk có điểm số cao nhất còn lại.
         if len(selected) < max_results:
             remaining = [d for d in docs if d not in selected]
             selected.extend(remaining[:max_results - len(selected)])
@@ -791,7 +733,7 @@ class RAGRetriever:
                 source = doc.get('metadata', {}).get('source', 'Unknown')
                 sources_count[source] = sources_count.get(source, 0) + 1
             logger.debug(
-                f"📊 Diversity filter result: {len(sources_count)} unique sources")
+                f" Diversity filter result: {len(sources_count)} unique sources")
             for source, count in sources_count.items():
                 logger.debug(f"  - {source}: {count} chunk(s)")
 
@@ -803,21 +745,10 @@ class RAGRetriever:
         similarity_threshold: float = 0.5,
         top_k: int = None
     ) -> List[Dict]:
-        """
-        Retrieve documents với ngưỡng similarity tối thiểu
-
-        Args:
-            query: Câu hỏi
-            similarity_threshold: Ngưỡng similarity (0-1)
-            top_k: Số documents tối đa
-
-        Returns:
-            List[Dict]: Documents có similarity >= threshold
-        """
+        """Retrieve documents với ngưỡng similarity tối thiểu"""
         results = self.retrieve(query, top_k)
 
-        # ✅ FIX: Đổi từ 'similarity' sang 'rrf_score' vì đã chuyển sang thuật toán RRF
-        # Filter theo threshold
+        # Lọc kết quả dựa trên điểm RRF
         filtered = [
             doc for doc in results
             if doc.get('rrf_score', 0) >= similarity_threshold
@@ -826,16 +757,7 @@ class RAGRetriever:
         return filtered
 
     def retrieve_and_format(self, query: str, top_k: int = None) -> str:
-        """
-        Retrieve và format thành context string
-
-        Args:
-            query: Câu hỏi
-            top_k: Số documents
-
-        Returns:
-            str: Formatted context
-        """
+        """Retrieve và format thành context string chuẩn bị cấp cho LLM"""
         results = self.retrieve(query, top_k)
 
         if not results:
@@ -847,7 +769,6 @@ class RAGRetriever:
             content = doc.get('content', '')
             metadata = doc.get('metadata', {})
             source = metadata.get('source', 'Unknown')
-            # ✅ FIX: Đổi từ 'similarity' sang 'rrf_score' và cập nhật format hiển thị
             rrf_score = doc.get('rrf_score', 0)
 
             context_parts.append(
@@ -866,96 +787,3 @@ class RAGRetriever:
             'top_k': self.top_k,
             'total_documents': vs_stats['total_documents']
         }
-
-
-def demo_retriever():
-    """Demo RAG Retriever"""
-    print("=" * 70)
-    print("DEMO - RAG RETRIEVER")
-    print("=" * 70)
-
-    # Tạo retriever
-    retriever = RAGRetriever()
-
-    # Kiểm tra vector store
-    stats = retriever.get_stats()
-    print("\n📊 Thống kê Retriever:")
-    print(f"  - Total documents: {stats['total_documents']}")
-    print(f"  - Embedding dimension: {stats['embedding_dim']}")
-    print(f"  - Top-K: {stats['top_k']}")
-
-    if stats['total_documents'] == 0:
-        print("\n⚠️  Vector store trống! Hãy chạy build_rag_pipeline.py trước.")
-        return
-
-    # Test queries
-    print("\n" + "=" * 70)
-    print("TEST RETRIEVAL")
-    print("=" * 70)
-
-    queries = [
-        "Cảm cúm có triệu chứng gì?",
-        "Làm sao để chữa đau đầu?",
-        "Khi nào cần đi bác sĩ?",
-        "Cách phòng ngừa bệnh hiệu quả"
-    ]
-
-    for query in queries:
-        print(f"\n{'='*70}")
-        print(f"❓ Query: {query}")
-        print(f"{'='*70}")
-
-        # Retrieve
-        results = retriever.retrieve(query, top_k=3)
-
-        if not results:
-            print("  ⚠️  Không tìm thấy kết quả")
-            continue
-
-        print("\n🔍 Top 3 kết quả:\n")
-
-        for i, doc in enumerate(results, 1):
-            print(f"  [{i}] Similarity: {doc['similarity']:.3f}")
-            print(f"      Source: {doc['metadata']['source']}")
-            print(f"      Content: {doc['content'][:120]}...")
-            print()
-
-    # Test retrieve với threshold
-    print("\n" + "=" * 70)
-    print("TEST RETRIEVE VỚI THRESHOLD")
-    print("=" * 70)
-
-    query = "điều trị cảm cúm"
-    threshold = 0.6
-
-    print(f"\n❓ Query: {query}")
-    print(f"🎯 Threshold: {threshold}")
-
-    results = retriever.retrieve_with_threshold(
-        query, similarity_threshold=threshold)
-
-    print(f"\n📊 Kết quả (similarity >= {threshold}):")
-    print(f"  Tìm thấy {len(results)} documents\n")
-
-    for i, doc in enumerate(results, 1):
-        print(f"  [{i}] {doc['similarity']:.3f} - {doc['content'][:80]}...")
-
-    # Test format context
-    print("\n" + "=" * 70)
-    print("TEST FORMAT CONTEXT")
-    print("=" * 70)
-
-    query = "triệu chứng sốt"
-    print(f"\n❓ Query: {query}\n")
-
-    context = retriever.retrieve_and_format(query, top_k=2)
-    print("📄 Context formatted:")
-    print("-" * 70)
-    print(context)
-    print("-" * 70)
-
-    print("\n✅ Demo hoàn tất!")
-
-
-if __name__ == "__main__":
-    demo_retriever()

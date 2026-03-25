@@ -9,8 +9,12 @@ from typing import List, Dict
 from pathlib import Path
 import sys
 
-# Thêm path để import config
+# Thêm path để import config từ thư mục gốc của dự án
 sys.path.append(str(Path(__file__).parent.parent.parent))
+
+# Lớp VectorStore đóng vai trò là Cơ sở dữ liệu Vector (Vector Database).
+# Nhiệm vụ của nó là lưu trữ các đoạn văn bản y khoa đã được "nhúng" (embedding)
+# thành các mảng số học nhiều chiều, và thực hiện truy vấn lân cận gần nhất (Nearest Neighbor Search).
 
 
 class VectorStore:
@@ -28,13 +32,17 @@ class VectorStore:
         self.index_path = index_path or str(
             config.VECTOR_STORE_DIR / "faiss_index")
 
-        # Tạo FAISS index (IndexFlatL2 = tìm kiếm chính xác)
+        # Khởi tạo lõi Index của FAISS.
+        # IndexFlatL2 thực hiện tìm kiếm vét cạn (Exhaustive Search) dựa trên
+        # khoảng cách Euclidean (L2 Distance). Điều này đảm bảo độ chính xác tuyệt đối (100%)
+        # cho tập dữ liệu vừa và nhỏ (như 40 tài liệu y khoa của dự án) thay vì dùng các thuật toán xấp xỉ (ANN).
         self.index = faiss.IndexFlatL2(dimension)
 
-        # Lưu documents metadata
+        # Danh sách (List) dùng để ánh xạ (Mapping) từ chỉ mục (Index) của FAISS
+        # ngược trở lại nội dung văn bản gốc và siêu dữ liệu (Metadata) tương ứng.
         self.documents = []
 
-        print(f"✅ Khởi tạo Vector Store (dimension={dimension})")
+        print(f"Khoi tao Vector Store (dimension={dimension})")
 
     def add_documents(self, documents: List[Dict]):
         """
@@ -44,23 +52,26 @@ class VectorStore:
             documents: List[{'content': str, 'metadata': dict, 'embedding': np.ndarray}]
         """
         if not documents:
-            print("⚠️  Không có document nào để thêm")
+            print("Khong co document nao de them")
             return
 
-        # Lấy embeddings
+        # Trích xuất toàn bộ mảng embedding và chuyển thành ma trận numpy 2 chiều (2D array)
         embeddings = np.array([doc['embedding'] for doc in documents])
 
-        # Kiểm tra dimension
+        # Tiền kiểm tra (Sanity Check) số chiều của vector đầu vào.
+        # Đảm bảo vector sinh ra từ Embedding Model (vd: 384 chiều) khớp với cấu trúc của FAISS Index.
         if embeddings.shape[1] != self.dimension:
             raise ValueError(
-                f"Embedding dimension không khớp! "
+                f"Embedding dimension khong khop! "
                 f"Expected {self.dimension}, got {embeddings.shape[1]}"
             )
 
-        # Thêm vào FAISS index
+        # Đẩy dữ liệu vào FAISS. Bắt buộc phải ép kiểu về 'float32' vì kiến trúc của thư viện
+        # FAISS (được viết bằng C++) được tối ưu hóa ở mức phần cứng cho kiểu dữ liệu này.
         self.index.add(embeddings.astype('float32'))
 
-        # Lưu metadata
+        # Lưu trữ song song siêu dữ liệu (Metadata) và nội dung (Content)
+        # theo đúng thứ tự Index mà FAISS vừa lưu để có thể trích xuất lại sau này.
         for doc in documents:
             doc_copy = {
                 'content': doc['content'],
@@ -68,9 +79,10 @@ class VectorStore:
             }
             self.documents.append(doc_copy)
 
-        print(f"✅ Đã thêm {len(documents)} documents")
-        print(f"📊 Tổng số documents: {self.index.ntotal}")
+        print(f"Da them {len(documents)} documents")
+        print(f"Tong so documents: {self.index.ntotal}")
 
+    # Hàm thực thi quá trình Truy xuất Ngữ nghĩa (Semantic Retrieval)
     def search(
         self,
         query_embedding: np.ndarray,
@@ -92,28 +104,31 @@ class VectorStore:
             }]
         """
         if self.index.ntotal == 0:
-            print("⚠️  Vector store trống!")
+            print("Vector store trong!")
             return []
 
         top_k = top_k or config.TOP_K_RETRIEVAL
 
-        # Reshape query embedding
+        # Định dạng lại kích thước (Reshape) vector câu hỏi thành ma trận [1, N_Dimensions]
+        # Đây là quy định bắt buộc của giao diện lập trình FAISS.
         query_vector = query_embedding.reshape(1, -1).astype('float32')
 
-        # Tìm kiếm
+        # Gọi thuật toán k-Nearest Neighbors (k-NN) từ thư viện C++ lõi của FAISS.
+        # Trả về khoảng cách L2 (distances) và vị trí (indices) của top_k tài liệu gần nhất.
         distances, indices = self.index.search(
             query_vector, min(top_k, self.index.ntotal))
 
-        # Chuẩn bị kết quả
+        # Chuẩn bị danh sách kết quả trả về cho hệ thống (RAG Pipeline)
         results = []
         for i, idx in enumerate(indices[0]):
+            # Kiểm tra biên an toàn (Boundary Check)
             if idx < len(self.documents):
                 doc = self.documents[idx].copy()
                 distance = float(distances[0][i])
 
-                # Chuyển distance thành similarity score (0-1)
-                # Distance càng nhỏ -> similarity càng cao
-                # Sử dụng công thức: similarity = 1 / (1 + distance)
+                # Thuật toán chuẩn hóa điểm số (Score Normalization).
+                # Vì khoảng cách L2 có dải giá trị từ [0, +vô cực] (khoảng cách càng nhỏ càng giống nhau),
+                # ta dùng phép nghịch đảo 1/(1+d) để quy đổi điểm số về dải [0, 1] cho dễ cấu hình Threshold.
                 similarity = 1.0 / (1.0 + distance)
 
                 doc['score'] = distance
@@ -124,6 +139,7 @@ class VectorStore:
 
         return results
 
+    # Hàm tuần tự hóa (Serialization) dữ liệu từ RAM xuống ổ cứng (Disk)
     def save(self, path: str = None):
         """
         Lưu vector store ra file
@@ -133,21 +149,23 @@ class VectorStore:
         """
         save_path = path or self.index_path
 
-        # Tạo thư mục nếu chưa có
+        # Tự động tạo cây thư mục nếu nó chưa tồn tại trên hệ điều hành
         Path(save_path).parent.mkdir(parents=True, exist_ok=True)
 
-        # Lưu FAISS index
+        # Xuất cấu trúc Index nhị phân của FAISS ra file .faiss
         faiss.write_index(self.index, f"{save_path}.faiss")
 
-        # Lưu documents metadata
+        # Sử dụng thư viện Pickle của Python để lưu cấu trúc đối tượng (List of Dicts)
+        # chứa Metadata và Text gốc ra một file nhị phân riêng biệt (.pkl)
         with open(f"{save_path}.pkl", 'wb') as f:
             pickle.dump({
                 'documents': self.documents,
                 'dimension': self.dimension
             }, f)
 
-        print(f"✅ Đã lưu vector store tại: {save_path}")
+        print(f"Da luu vector store tai: {save_path}")
 
+    # Hàm nạp dữ liệu (Deserialization) từ ổ cứng lên RAM khi khởi động Server Flask
     def load(self, path: str = None):
         """
         Load vector store từ file
@@ -157,28 +175,28 @@ class VectorStore:
         """
         load_path = path or self.index_path
 
-        # Check file tồn tại
+        # Kiểm tra tính toàn vẹn của file (File Integrity Check)
         if not Path(f"{load_path}.faiss").exists():
-            print(f"❌ Không tìm thấy file: {load_path}.faiss")
+            print(f"Khong tim thay file: {load_path}.faiss")
             return False
 
-        # Load FAISS index
+        # Khôi phục đối tượng FAISS Index
         self.index = faiss.read_index(f"{load_path}.faiss")
 
-        # Load documents metadata
+        # Khôi phục dữ liệu Metadata
         with open(f"{load_path}.pkl", 'rb') as f:
             data = pickle.load(f)
             self.documents = data['documents']
             self.dimension = data['dimension']
 
-        print(f"✅ Đã load vector store: {self.index.ntotal} documents")
+        print(f"Da load vector store: {self.index.ntotal} documents")
         return True
 
     def clear(self):
         """Xóa toàn bộ dữ liệu trong vector store"""
         self.index.reset()
         self.documents = []
-        print("🗑️  Đã xóa toàn bộ vector store")
+        print("Da xoa toan bo vector store")
 
     def get_stats(self) -> Dict:
         """Lấy thống kê về vector store"""
@@ -188,6 +206,8 @@ class VectorStore:
             'index_type': type(self.index).__name__,
             'is_trained': self.index.is_trained
         }
+
+# Khối lệnh kiểm thử đơn vị (Unit Test) chạy độc lập để đánh giá mô hình Vector Store
 
 
 def demo_vector_store():
@@ -200,15 +220,15 @@ def demo_vector_store():
     from backend.rag.embeddings import EmbeddingModel
 
     # Tạo embedding model
-    print("\n1️⃣  Tạo embedding model...")
+    print("\n Tao embedding model...")
     embedder = EmbeddingModel(use_vietnamese=False)  # Dùng model nhẹ cho demo
 
     # Tạo vector store
-    print("\n2️⃣  Tạo vector store...")
+    print("\n Tao vector store...")
     vector_store = VectorStore(dimension=embedder.embedding_dim)
 
     # Tạo documents mẫu
-    print("\n3️⃣  Chuẩn bị documents...")
+    print("\n Chuan bi documents...")
     texts = [
         "Cảm cúm là bệnh do virus, có triệu chứng sốt và đau đầu",
         "Viêm amidan gây đau họng, khó nuốt, cần uống kháng sinh",
@@ -234,21 +254,21 @@ def demo_vector_store():
         })
 
     # Encode documents
-    print(f"⏳ Đang encode {len(documents)} documents...")
+    print(f" Dang encode {len(documents)} documents...")
     documents = embedder.encode_documents(documents)
 
     # Thêm vào vector store
-    print("\n4️⃣  Thêm documents vào vector store...")
+    print("\n Them documents vao vector store...")
     vector_store.add_documents(documents)
 
     # Hiển thị thống kê
     stats = vector_store.get_stats()
-    print("\n📊 Thống kê:")
+    print("\n Thong ke:")
     for key, value in stats.items():
         print(f"  - {key}: {value}")
 
     # Test tìm kiếm
-    print("\n5️⃣  TEST TÌM KIẾM")
+    print("\n TEST TIM KIEM")
     print("=" * 60)
 
     queries = [
@@ -258,7 +278,7 @@ def demo_vector_store():
     ]
 
     for query in queries:
-        print(f"\n❓ Câu hỏi: '{query}'")
+        print(f"\n Cau hoi: '{query}'")
 
         # Encode query
         query_embedding = embedder.encode_text(query)
@@ -266,22 +286,22 @@ def demo_vector_store():
         # Tìm kiếm
         results = vector_store.search(query_embedding, top_k=3)
 
-        print("🔍 Top 3 kết quả:")
+        print(" Top 3 ket qua:")
         for result in results:
             print(f"\n  Rank #{result['rank']}:")
-            print(f"  📄 {result['content']}")
-            print(f"  📊 Similarity: {result['similarity']:.3f}")
-            print(f"  📌 Source: {result['metadata']['source']}")
+            print(f"   {result['content']}")
+            print(f"   Similarity: {result['similarity']:.3f}")
+            print(f"   Source: {result['metadata']['source']}")
 
     # Test save/load
-    print("\n6️⃣  TEST SAVE/LOAD")
+    print("\n TEST SAVE/LOAD")
     print("=" * 60)
 
     save_path = str(config.VECTOR_STORE_DIR / "demo_index")
     vector_store.save(save_path)
 
     # Tạo vector store mới và load
-    print("\n⏳ Tạo vector store mới và load...")
+    print("\n Tao vector store moi va load...")
     new_vector_store = VectorStore(dimension=embedder.embedding_dim)
     new_vector_store.load(save_path)
 
@@ -289,12 +309,12 @@ def demo_vector_store():
     query_embedding = embedder.encode_text("sốt cao")
     results = new_vector_store.search(query_embedding, top_k=2)
 
-    print("\n✅ Test search sau khi load:")
+    print("\n Test search sau khi load:")
     for result in results[:2]:
         print(
             f"  - {result['content'][:50]}... (sim: {result['similarity']:.3f})")
 
-    print("\n✅ Demo hoàn tất!")
+    print("\n Demo hoan tat!")
 
 
 if __name__ == "__main__":

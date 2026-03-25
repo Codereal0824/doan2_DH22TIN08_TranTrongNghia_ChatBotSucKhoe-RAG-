@@ -8,14 +8,18 @@ import sys
 from pathlib import Path
 import re
 
-# Thêm path để import config
+# Thêm path để import config từ thư mục gốc
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 
 # ============================================
-# SECTION-BASED CHUNKER (NEW)
+# SECTION-BASED CHUNKER (CHIA NHỎ DỮ LIỆU THEO NGỮ NGHĨA)
 # ============================================
 
+# Lớp này triển khai thuật toán Semantic Chunking.
+# Khác với Naive Chunking (chia theo số lượng ký tự cố định), thuật toán này
+# nhận diện cấu trúc logic của văn bản y khoa (các mục 1, 2, 3...) để đảm bảo
+# LLM nhận được một khối thông tin trọn vẹn ý nghĩa nhất.
 class SectionBasedChunker:
     """
     Chunker chia tài liệu theo cấu trúc section (1., 2., 3., ...)
@@ -33,10 +37,14 @@ class SectionBasedChunker:
             chunk_size: Kích thước tối đa cho mỗi chunk (chars)
             chunk_overlap: Độ chồng lấp giữa các sub-chunks
         """
-        # Pattern để nhận diện section headers (1. , 2. , 3. , ...)
+        # Biểu thức chính quy (Regex) để nhận diện các tiêu đề mục.
+        # Sử dụng cờ re.MULTILINE để áp dụng mẫu tìm kiếm cho từng dòng độc lập.
         self.section_pattern = re.compile(r'^\d+\.\s+(.+)$', re.MULTILINE)
 
-        # HYBRID: RecursiveCharacterTextSplitter cho section quá dài
+        # CƠ CHẾ LAI (HYBRID CHUNKING):
+        # Khởi tạo một đối tượng chia văn bản đệ quy dự phòng.
+        # Nếu một mục (Section) có nội dung quá dài vượt giới hạn Token,
+        # nó sẽ bị cắt nhỏ dựa trên các dấu câu (chấm, phẩy) để bảo toàn cấu trúc ngữ pháp.
         self.chunk_size = chunk_size
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=chunk_size,
@@ -45,6 +53,7 @@ class SectionBasedChunker:
             length_function=len,
         )
 
+    # Thuật toán Heuristic (Kinh nghiệm) để trích xuất tiêu đề văn bản.
     def extract_title(self, text: str) -> str:
         """
         Trích xuất tiêu đề tài liệu (thường là dòng đầu tiên)
@@ -57,12 +66,13 @@ class SectionBasedChunker:
         """
         lines = text.strip().split('\n')
 
-        # Tìm dòng có "Tiêu đề:"
-        for line in lines[:10]:  # Chỉ tìm trong 10 dòng đầu
+        # Quét 10 dòng đầu tiên để tìm từ khóa định danh "Tiêu đề:"
+        for line in lines[:10]:
             if line.strip().startswith('Tiêu đề:'):
                 return line.strip().replace('Tiêu đề:', '').strip()
 
-        # Nếu không tìm thấy, lấy dòng đầu tiên không rỗng
+        # Fallback: Nếu không có từ khóa định danh, giả định dòng văn bản
+        # đầu tiên không rỗng (và không phải dòng trích dẫn nguồn) là Tiêu đề.
         for line in lines[:5]:
             if line.strip() and not line.strip().startswith('Nguồn:'):
                 return line.strip()
@@ -83,10 +93,8 @@ class SectionBasedChunker:
         if not text or not text.strip():
             return []
 
-        # Extract document title
         doc_title = self.extract_title(text)
 
-        # Find all section headers
         sections = []
         lines = text.split('\n')
 
@@ -94,12 +102,13 @@ class SectionBasedChunker:
         current_section_title = None
         current_content = []
 
+        # Máy trạng thái hữu hạn (Finite State Machine) đơn giản để duyệt từng dòng
+        # và gom cụm nội dung thuộc về cùng một Section.
         for line in lines:
-            # Check if line is a section header (1. , 2. , 3. , ...)
             match = re.match(r'^(\d+)\.\s+(.+)$', line.strip())
 
             if match:
-                # Save previous section if exists
+                # Khi gặp một tiêu đề mới, tiến hành đóng gói (Save) nội dung của mục cũ
                 if current_section is not None:
                     section_text = '\n'.join(current_content).strip()
                     if section_text:
@@ -109,16 +118,16 @@ class SectionBasedChunker:
                             'content': section_text
                         })
 
-                # Start new section
+                # Bắt đầu ghi nhận dữ liệu cho mục mới
                 current_section = match.group(1)
                 current_section_title = match.group(2).strip()
                 current_content = []
             else:
-                # Add line to current section content
+                # Tích lũy nội dung văn bản vào mục hiện tại
                 if current_section is not None:
                     current_content.append(line)
 
-        # Save last section
+        # Xử lý trường hợp biên (Edge Case): Lưu lại mục cuối cùng khi kết thúc vòng lặp
         if current_section is not None:
             section_text = '\n'.join(current_content).strip()
             if section_text:
@@ -128,35 +137,34 @@ class SectionBasedChunker:
                     'content': section_text
                 })
 
-        # Create chunks from sections
         chunks = []
         for i, section in enumerate(sections):
-            # Format: "Document Title - Section Title:\n Content"
+            # Kỹ thuật Metadata Enrichment (Làm giàu Siêu dữ liệu):
+            # Cố tình ghép nối Tên tài liệu + Tên mục vào nội dung văn bản.
+            # Điều này giúp các đoạn văn bản (chunks) đứng độc lập vẫn giữ được Context.
             if doc_title:
                 chunk_text = f"{doc_title} - {section['title']}:\n\n{section['content']}"
             else:
                 chunk_text = f"{section['title']}:\n\n{section['content']}"
 
             # ============================================
-            # HYBRID CHUNKING: Chia nhỏ section nếu quá dài
+            # HYBRID CHUNKING: KIỂM SOÁT KÍCH THƯỚC (SIZE CONTROL)
             # ============================================
             if len(chunk_text) > self.chunk_size:
-                # Section vượt quá giới hạn -> Chia nhỏ bằng RecursiveCharacterTextSplitter
                 print(
-                    f"   ⚠️  Section '{section['title']}' quá dài ({len(chunk_text)} chars), đang chia nhỏ...")
+                    f" [CANH BAO] Section '{section['title']}' qua dai ({len(chunk_text)} chars), dang chia nho...")
 
                 sub_chunks_text = self.text_splitter.split_text(chunk_text)
 
                 for sub_idx, sub_chunk_text in enumerate(sub_chunks_text):
-                    # Tạo metadata cho sub-chunk
+                    # Gắn thẻ (Tagging) chi tiết cho từng sub-chunk để phục vụ công tác Debug
+                    # và đối chiếu nguồn sau này.
                     chunk_metadata = metadata.copy() if metadata else {}
-                    chunk_metadata['chunk_index'] = len(
-                        chunks)  # Global chunk index
+                    chunk_metadata['chunk_index'] = len(chunks)
                     chunk_metadata['section_number'] = section['number']
                     chunk_metadata['section_title'] = section['title']
                     chunk_metadata['document_title'] = doc_title
                     chunk_metadata['chunking_method'] = 'hybrid-section-recursive'
-                    # Sub-chunk index trong section
                     chunk_metadata['sub_chunk_index'] = sub_idx
                     chunk_metadata['total_sub_chunks'] = len(sub_chunks_text)
 
@@ -165,7 +173,7 @@ class SectionBasedChunker:
                         'metadata': chunk_metadata
                     })
             else:
-                # Section đủ ngắn -> Giữ nguyên
+                # Nếu kích thước nằm trong ngưỡng an toàn, duy trì tính nguyên vẹn của chunk.
                 chunk_metadata = metadata.copy() if metadata else {}
                 chunk_metadata['chunk_index'] = len(chunks)
                 chunk_metadata['section_number'] = section['number']
@@ -178,11 +186,14 @@ class SectionBasedChunker:
                     'metadata': chunk_metadata
                 })
 
-        # Cập nhật total_chunks cho tất cả chunks
+        # Cập nhật số lượng tổng để quản lý vòng đời tài liệu
         for chunk in chunks:
             chunk['metadata']['total_chunks'] = len(chunks)
 
         return chunks
+
+# Lớp DocumentChunker đóng vai trò là Trình điều phối (Orchestrator)
+# quyết định việc sử dụng thuật toán chia nhỏ nào tùy thuộc vào cấu trúc của file đầu vào.
 
 
 class DocumentChunker:
@@ -193,28 +204,20 @@ class DocumentChunker:
         chunk_size: int = None,
         chunk_overlap: int = None,
         separators: List[str] = None,
-        use_section_based: bool = True  # NEW: Default to section-based
+        use_section_based: bool = True
     ):
-        """
-        Khởi tạo chunker
-
-        Args:
-            chunk_size: Kích thước tối đa của mỗi chunk (characters)
-            chunk_overlap: Số ký tự chồng lấp giữa các chunk
-            separators: Danh sách ký tự phân tách ưu tiên
-            use_section_based: Sử dụng section-based chunking (khuyên dùng)
-        """
+        """Khởi tạo chunker"""
         self.chunk_size = chunk_size or config.CHUNK_SIZE
         self.chunk_overlap = chunk_overlap or config.CHUNK_OVERLAP
         self.use_section_based = use_section_based
 
-        # Initialize section-based chunker với Hybrid strategy
         self.section_chunker = SectionBasedChunker(
             chunk_size=self.chunk_size,
             chunk_overlap=self.chunk_overlap
         )
 
-        # Separators cho tiếng Việt (fallback cho non-section chunking)
+        # Cấu hình danh sách ký tự phân tách giảm dần (từ đoạn văn -> câu -> từ).
+        # Đảm bảo việc cắt chuỗi không làm hỏng cụm từ tiếng Việt.
         if separators is None:
             separators = [
                 "\n\n",  # Paragraph
@@ -236,43 +239,34 @@ class DocumentChunker:
         )
 
         print(
-            f"📊 Chunking mode: {'Section-Based' if use_section_based else 'Token-Based'}")
+            f"[THONG TIN] Chunking mode: {'Section-Based' if use_section_based else 'Token-Based'}")
 
     def chunk_text(self, text: str, metadata: Dict = None) -> List[Dict]:
-        """
-        Chia một văn bản thành nhiều chunks
-
-        Args:
-            text: Văn bản cần chia
-            metadata: Metadata gắn với văn bản
-
-        Returns:
-            List[Dict]: Danh sách chunks với content và metadata
-        """
+        """Chia một văn bản thành nhiều chunks"""
         if not text or not text.strip():
             return []
 
         # ============================================
-        # TRY SECTION-BASED CHUNKING FIRST
+        # ƯU TIÊN SỬ DỤNG SECTION-BASED CHUNKING (SEMANTIC)
         # ============================================
         if self.use_section_based:
-            # Kiểm tra xem văn bản có cấu trúc section không
             section_chunks = self.section_chunker.chunk_by_sections(
                 text, metadata)
 
             if section_chunks and len(section_chunks) > 0:
                 print(
-                    f"   ✅ Section-based chunking: {len(section_chunks)} sections")
+                    f"  [THONG TIN] Section-based chunking: {len(section_chunks)} sections")
                 return section_chunks
             else:
-                print("   ⚠️  No sections found, falling back to token-based chunking")
+                print(
+                    "  [CANH BAO] No sections found, falling back to token-based chunking")
 
         # ============================================
-        # FALLBACK: TOKEN-BASED CHUNKING
+        # DỰ PHÒNG: TOKEN-BASED CHUNKING (NAIVE)
+        # Nếu tài liệu không có cấu trúc phân mục 1. 2. 3., chuyển về cắt đệ quy.
         # ============================================
         chunks = self.text_splitter.split_text(text)
 
-        # Tạo list documents
         documents = []
         for i, chunk in enumerate(chunks):
             doc_metadata = metadata.copy() if metadata else {}
@@ -285,19 +279,13 @@ class DocumentChunker:
                 'metadata': doc_metadata
             })
 
-        print(f"   ✅ Token-based chunking: {len(documents)} chunks")
+        print(f"  [THONG TIN] Token-based chunking: {len(documents)} chunks")
         return documents
 
     def chunk_documents(self, documents: List[Dict]) -> List[Dict]:
         """
         Chia nhiều documents thành chunks
-
-        Args:
-            documents: Danh sách documents với format:
-                      [{'content': str, 'metadata': dict}, ...]
-
-        Returns:
-            List[Dict]: Danh sách chunks
+        Hàm hỗ trợ xử lý hàng loạt (Batch Processing).
         """
         all_chunks = []
 

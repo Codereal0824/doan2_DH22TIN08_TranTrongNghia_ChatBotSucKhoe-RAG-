@@ -5,10 +5,12 @@ import re
 from typing import Dict
 
 # ============================================
-# NORMALIZATION RULES
+# NORMALIZATION RULES (QUY TẮC CHUẨN HÓA VĂN BẢN)
 # ============================================
 
-# Từ dư thừa cần loại bỏ
+# Danh sách từ dừng (Stopwords/Filler Words) đặc thù cho dạng câu hỏi giao tiếp.
+# Loại bỏ các từ này giúp hệ thống tìm kiếm thưa (Sparse Retrieval - BM25)
+# không bị nhiễu bởi các từ có tần suất xuất hiện cao nhưng mang ít ngữ nghĩa.
 FILLER_WORDS = [
     r'\bnhư nào\b',
     r'\bnhư thế nào\b',
@@ -23,41 +25,42 @@ FILLER_WORDS = [
     r'\bxin\b',
 ]
 
-# Chuẩn hóa cách diễn đạt đồng nghĩa
+# Cấu trúc từ điển (Dictionary Mapping) quy định các Mẫu Đồng nghĩa (Synonym Patterns).
+# Kỹ thuật này giải quyết vấn đề Khác biệt Từ vựng (Vocabulary Mismatch) giữa
+# văn phong nói của người dùng và văn phong học thuật trong tài liệu y khoa.
 SYNONYM_PATTERNS = {
-    # Triệu chứng
+    # Nhóm Triệu chứng: Ép chuẩn về danh từ gốc
     r'\bbị ho (nhẹ|nhiều|khan)\b': 'ho',
     r'\bbị ho\b': 'ho',
     r'\bho (nhẹ|nhiều|khan)\b': 'ho',
     r'\bbị sốt\b': 'sốt',
     r'\bsốt (nhẹ|cao)\b': 'sốt',
     r'\bbị (đau đầu|nhức đầu)\b': 'đau đầu',
+    # Sử dụng Backreference (\1) để giữ lại hậu tố
     r'\bđau (đầu|họng|bụng)\b': 'đau \\1',
     r'\bviêm (họng|phổi|amidan)\b': 'viêm \\1',
 
-    # Hành động
+    # Nhóm Hành động/Cách xử trí
     r'\b(làm gì khi|làm sao khi|xử lý khi)\b': 'cách chăm sóc',
     r'\b(phòng tránh|ngăn ngừa|tránh)\b': 'phòng ngừa',
     r'\b(điều trị|chữa trị|khắc phục)\b': 'cách chăm sóc',
     r'\bcách (xử lý|giải quyết|đối phó)\b': 'cách chăm sóc',
     r'\bnên làm gì\b': 'cách chăm sóc',
 
-    # Nguyên nhân
+    # Nhóm Nguyên nhân
     r'\b(tại sao|vì sao|do đâu)\b': 'nguyên nhân',
     r'\blý do\b': 'nguyên nhân',
 
-    # Triệu chứng/dấu hiệu (map về "dấu hiệu" vì tài liệu dùng "Dấu hiệu thường gặp")
+    # Nhóm Nhận biết: Đồng bộ hóa với cấu trúc tiêu đề "Dấu hiệu thường gặp" trong Dataset
     r'\b(biểu hiện|triệu chứng)\b': 'dấu hiệu',
-
-    # NEW: Query expansion cho câu hỏi ngắn về dấu hiệu
     r'\b(các )?dấu hiệu (của|là gì)\b': 'dấu hiệu thường gặp',
     r'\b(các )?triệu chứng (của|là gì)\b': 'dấu hiệu thường gặp',
 
-    # Khi nào đến bác sĩ
+    # Nhóm Cảnh báo y tế
     r'\b(khi nào nên đi (khám|bác sĩ|bệnh viện))\b': 'khi nào đến cơ sở y tế',
     r'\bđến bác sĩ\b': 'đến cơ sở y tế',
 
-    # MỞ RỘNG TRIỆU CHỨNG - Chuẩn hóa về dạng ngắn nhất khớp với tài liệu
+    # Nhóm MỞ RỘNG TRIỆU CHỨNG (Symptom Expansion) - Chuẩn hóa về dạng ngắn nhất khớp với tài liệu
     r'\bbị (mệt mỏi|mệt|kiệt sức|uể oải)\b': 'mệt mỏi',
     r'\b(mệt|kiệt sức|uể oải)\b': 'mệt mỏi',
     r'\bsốt (kéo dài|liên tục|cao|nhẹ|vừa)\b': 'sốt',
@@ -83,7 +86,7 @@ SYNONYM_PATTERNS = {
     r'\bbị (căng thẳng|lo lắng nhiều|lo âu)\b': 'stress',
     r'\b(căng thẳng|lo lắng)\b': 'stress',
 
-    # DISEASE SYNONYMS - Map tên gọi khác về tên chính
+    # Nhóm Ánh xạ Bệnh lý (Disease Synonyms)
     r'\btiểu đường\b': 'đái tháo đường',
     r'\btieu duong\b': 'dai thao duong',
     r'\bbéo phì\b': 'béo phì lối sống',
@@ -91,7 +94,8 @@ SYNONYM_PATTERNS = {
     r'\bđau dạ dày\b': 'rối loạn tiêu hóa',
 }
 
-# Các từ khóa chăm sóc sức khỏe quan trọng (GIỮ LẠI)
+# Bộ Tự điển Thuật ngữ Cốt lõi (Core Terminology Lexicon).
+# Dùng để kích hoạt phân luồng (Routing) đối với các câu hỏi về sức khỏe.
 HEALTH_KEYWORDS = [
     'ho', 'sốt', 'đau đầu', 'cảm lạnh', 'viêm họng', 'cúm',
     'stress', 'mất ngủ', 'mệt mỏi', 'chóng mặt',
@@ -99,18 +103,19 @@ HEALTH_KEYWORDS = [
     'dinh dưỡng', 'vận động', 'nghỉ ngơi',
 ]
 
-# Patterns để phát hiện câu hỏi chẩn đoán bệnh (cần từ chối)
+# Các Mẫu cấm kỵ (Forbidden Patterns) liên quan đến Chẩn đoán Lâm sàng.
+# Dùng cho Tầng bảo vệ (Safety Gate) đầu tiên trước khi gọi LLM.
 MEDICAL_DIAGNOSIS_PATTERNS = [
     r'\btôi (có |đang )?(bị|mắc)\b',
     r'\bcon tôi (có |đang )?(bị|mắc)\b',
     r'\b(chẩn đoán|kết luận|chắc là) bệnh\b',
     r'\b(thuốc|đơn thuốc) điều trị\b',
-    r'\b(u não|ung thư|hiểm nghèo)\b.*tôi\b'
+    r'\b(u hiểu|ung thư|hiểm nghèo)\b.*tôi\b'
 ]
 
 
 # ============================================
-# QUERY NORMALIZATION FUNCTION
+# QUERY NORMALIZATION FUNCTION (HÀM XỬ LÝ CHÍNH)
 # ============================================
 
 def normalize_query(query: str) -> str:
@@ -121,44 +126,47 @@ def normalize_query(query: str) -> str:
         query: Câu hỏi gốc từ người dùng
 
     Returns:
-        str: Câu hỏi đã chuẩn hóa
+        str: Câu hỏi đã chuẩn hóa (Stemmed/Lemmatized equivalent)
     """
     if not query or not query.strip():
         return query
 
-    # Chuyển về lowercase
+    # Bước 1: Lowercasing (Chuyển chữ thường) để đảm bảo Case-Insensitive matching
     normalized = query.lower().strip()
 
-    # Log original query
-    print("\n🔄 QUERY NORMALIZATION:")
+    # Log quá trình biến đổi để hỗ trợ Debugging
+    print("\n[THONG TIN] QUERY NORMALIZATION:")
     print(f"   Original: '{query}'")
 
-    # 1. Áp dụng synonym patterns (đồng nghĩa)
+    # Bước 2: Kích hoạt bộ lọc Đồng nghĩa (Synonym mapping)
     for pattern, replacement in SYNONYM_PATTERNS.items():
         if re.search(pattern, normalized):
             old_normalized = normalized
             normalized = re.sub(pattern, replacement, normalized)
             if old_normalized != normalized:
-                print(f"   ✏️  Synonym: '{pattern}' → '{replacement}'")
+                print(f"   [CHI TIET] Synonym: '{pattern}' -> '{replacement}'")
 
-    # 2. Loại bỏ filler words (từ dư thừa)
+    # Bước 3: Cắt tỉa Từ dư thừa (Stopword Removal)
     for filler in FILLER_WORDS:
         if re.search(filler, normalized):
             old_normalized = normalized
             normalized = re.sub(filler, '', normalized)
             if old_normalized != normalized:
-                print(f"   ❌ Removed: '{filler}'")
+                print(f"   [XOA BO] Removed: '{filler}'")
 
-    # 3. Loại bỏ dấu câu thừa
+    # Bước 4: Dọn dẹp Dấu câu (Punctuation Removal)
     normalized = re.sub(r'[?!.,;]+', ' ', normalized)
 
-    # 4. Loại bỏ khoảng trắng thừa
+    # Bước 5: Cắt xén khoảng trắng thừa (Whitespace normalization)
     normalized = re.sub(r'\s+', ' ', normalized).strip()
 
-    # Log final normalized query
     print(f"   Normalized: '{normalized}'")
 
     return normalized
+
+# Hàm Heuristic dựa trên Quy tắc (Rule-based Intent Extraction).
+# Phân rã câu hỏi thành một vector đặc trưng Boolean (Boolean Feature Vector)
+# để luồng RAG biết cách định tuyến và cấu hình trọng số truy xuất phù hợp.
 
 
 def extract_health_intent(query: str) -> Dict[str, any]:
@@ -169,7 +177,7 @@ def extract_health_intent(query: str) -> Dict[str, any]:
         query: Câu hỏi (đã hoặc chưa chuẩn hóa)
 
     Returns:
-        Dict với intent analysis
+        Dict với intent analysis (Feature Vector)
     """
     query_lower = query.lower()
 
@@ -184,11 +192,11 @@ def extract_health_intent(query: str) -> Dict[str, any]:
         'mentions_medicine': False,
     }
 
-    # Kiểm tra health keywords
+    # Kích hoạt cờ (Flag) nếu câu hỏi chứa từ khóa sức khỏe
     if any(keyword in query_lower for keyword in HEALTH_KEYWORDS):
         intent['is_health_query'] = True
 
-    # Phân loại intent
+    # Phân loại đa nhãn (Multi-label classification) bằng Regex
     if re.search(r'(triệu chứng|dấu hiệu|biểu hiện)', query_lower):
         intent['asks_for_symptoms'] = True
 
@@ -204,7 +212,7 @@ def extract_health_intent(query: str) -> Dict[str, any]:
     if re.search(r'(khi nào.*?(đến|đi|gặp|khám).*(bác sĩ|y tế|bệnh viện))', query_lower):
         intent['asks_for_when_doctor'] = True
 
-    # NGUY HIỂM: Yêu cầu điều trị/thuốc
+    # KÍCH HOẠT CỜ ĐỎ (RED FLAGS): Phát hiện yêu cầu vi phạm đạo đức y tế
     if re.search(r'(điều trị|chữa trị|dùng thuốc|uống thuốc|liều|kê đơn)', query_lower):
         intent['mentions_treatment'] = True
 
@@ -212,6 +220,10 @@ def extract_health_intent(query: str) -> Dict[str, any]:
         intent['mentions_medicine'] = True
 
     return intent
+
+# Cổng An toàn Số 1 (Pre-Retrieval Safety Gate).
+# Đóng vai trò như một tường lửa (Firewall) chặn đứng các yêu cầu độc hại
+# trước khi chúng kịp đi vào hệ thống tìm kiếm Vector và tốn tài nguyên gọi LLM.
 
 
 def should_block_query(query: str) -> tuple[bool, str]:
@@ -226,11 +238,12 @@ def should_block_query(query: str) -> tuple[bool, str]:
     """
     intent = extract_health_intent(query)
 
-    # Chặn nếu hỏi về điều trị hoặc thuốc
+    # Từ chối phục vụ (Reject) nếu người dùng có ý định xin phác đồ điều trị
     if intent['mentions_treatment']:
-        return True, "Yêu cầu thông tin điều trị (ngoài phạm vi)"
+        return True, "Yeu cau thong tin dieu tri (ngoai pham vi)"
 
+    # Từ chối phục vụ nếu người dùng hỏi về Dược lý học chuyên sâu (Pharmacology)
     if intent['mentions_medicine']:
-        return True, "Yêu cầu thông tin về thuốc (ngoài phạm vi)"
+        return True, "Yeu cau thong tin ve thuoc (ngoai pham vi)"
 
     return False, ""
