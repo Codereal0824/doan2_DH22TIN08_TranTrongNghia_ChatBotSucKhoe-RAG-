@@ -142,3 +142,24 @@ class SQLHandler:
             ORDER BY created_at ASC
         """
         return self.execute_query(query, (session_id,))
+
+    # xoa lich su chat
+    def delete_session(self, session_id: int) -> bool:
+        delete_messages_query = """
+            DELETE FROM chat_history
+            WHERE session_id = ?
+        """
+        delete_session_query = """
+            DELETE FROM chat_sessions
+            WHERE session_id = ?
+        """
+
+        try:
+            self.cursor.execute(delete_messages_query, (session_id,))
+            self.cursor.execute(delete_session_query, (session_id,))
+            self.connection.commit()
+            return True
+        except Exception as e:
+            print(f"Lỗi xóa session: {e}")
+            self.connection.rollback()
+            return False

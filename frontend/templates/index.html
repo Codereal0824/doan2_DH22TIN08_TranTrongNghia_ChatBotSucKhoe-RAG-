@@ -94,6 +94,34 @@
         color: #1a73e8;
         font-weight: 500;
       }
+      .session-item-content {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .session-item-text {
+        min-width: 0;
+        flex: 1;
+      }
+      .session-delete-btn {
+        border: none;
+        background: transparent;
+        color: #9aa0a6;
+        cursor: pointer;
+        font-size: 16px;
+        line-height: 1;
+        padding: 2px 4px;
+        border-radius: 6px;
+        flex-shrink: 0;
+      }
+      .session-delete-btn:hover {
+        background-color: rgba(220, 53, 69, 0.08);
+        color: #dc3545;
+      }
+      .session-item.active .session-delete-btn {
+        color: #1a73e8;
+      }
 
       /* Đảm bảo khung chat cũ vẫn hoạt động tốt */
       .container {

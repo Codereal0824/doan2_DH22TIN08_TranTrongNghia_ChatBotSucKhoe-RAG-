@@ -206,6 +206,38 @@ def get_history(session_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# hanh dong xoa
+
+
+@app.route('/api/chat/<session_id>', methods=['DELETE'])
+def delete_chat_session(session_id):
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+
+    try:
+        session_id_int = int(session_id)
+    except ValueError:
+        return jsonify({'success': False, 'error': 'Session ID không hợp lệ'}), 400
+
+    try:
+        user_sessions = db.get_user_sessions(session['user_id'])
+        is_owned_session = any(
+            item['session_id'] == session_id_int for item in user_sessions
+        )
+
+        if not is_owned_session:
+            return jsonify({'success': False, 'error': 'Không tìm thấy đoạn chat'}), 404
+
+        deleted = db.delete_session(session_id_int)
+        if deleted:
+            return jsonify({'success': True, 'message': 'Đã xóa'})
+
+        return jsonify({'success': False, 'error': 'Không thể xóa đoạn chat'}), 500
+    except Exception as e:
+        logger.error(
+            f"Error deleting chat session {session_id}: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 # =====================================================================
 # API CHAT STREAMING (SỰ KIỆN GỬI TỪ MÁY CHỦ - SSE)
 # =====================================================================

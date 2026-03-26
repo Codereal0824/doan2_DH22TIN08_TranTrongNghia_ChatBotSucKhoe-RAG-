@@ -63,6 +63,46 @@ class HealthChatbot {
     this.checkHealth();
     this.loadSessions(); // Gọi hàm load lịch sử ngay khi vừa mở trang
   }
+  // Xoa phien hoi chatbot
+  async deleteSession(sessionId, sessionElement) {
+    const shouldDelete = window.confirm(
+      "Bạn có chắc chắn muốn xóa đoạn chat này không?",
+    );
+    if (!shouldDelete) return;
+
+    try {
+      const response = await fetch(`/api/chat/${sessionId}`, {
+        method: "DELETE",
+      });
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Không thể xóa đoạn chat.");
+      }
+
+      if (sessionElement) {
+        sessionElement.remove();
+      }
+
+      if (String(this.sessionId) === String(sessionId)) {
+        this.sessionId = "default";
+        if (this.messages) this.messages.innerHTML = "";
+        if (this.chatContainer) this.chatContainer.classList.remove("active");
+        if (this.welcomeScreen) this.welcomeScreen.classList.remove("hidden");
+      }
+
+      if (
+        this.sessionList &&
+        !this.sessionList.querySelector(".session-item")
+      ) {
+        this.sessionList.innerHTML =
+          '<li class="text-muted small p-2">Chưa có lịch sử chat</li>';
+      }
+    } catch (error) {
+      console.error("❌ Lỗi xóa session:", error);
+      this.showError(error.message || "Không thể xóa đoạn chat.");
+    }
+  }
 
   // ==========================================
   // XỬ LÝ LỊCH SỬ CHAT (SESSIONS)
@@ -94,14 +134,27 @@ class HealthChatbot {
           // Tùy chỉnh class CSS này theo giao diện HTML của bạn
           li.className =
             "session-item p-2 mb-1 rounded cursor-pointer hover-bg-light";
+          li.dataset.sessionId = session.session_id;
           // Đổi màu nếu đang là phiên hiện tại
-          if (this.sessionId == session.session_id)
-            li.classList.add("bg-primary", "text-white");
+          if (this.sessionId == session.session_id) li.classList.add("active");
 
           li.innerHTML = `
-                    <div class="text-truncate fw-bold">${this.escapeHtml(session.session_name)}</div>
-                    <div class="small opacity-75">${new Date(session.created_at).toLocaleDateString("vi-VN")}</div>
+                    <div class="session-item-content">
+                        <div class="session-item-text">
+                            <div class="text-truncate fw-bold">${this.escapeHtml(session.session_name)}</div>
+                            <div class="small opacity-75">${new Date(session.created_at).toLocaleDateString("vi-VN")}</div>
+                        </div>
+                        <button class="session-delete-btn" type="button" title="Xóa đoạn chat" aria-label="Xóa đoạn chat">🗑️</button>
+                    </div>
                 `;
+
+          const deleteBtn = li.querySelector(".session-delete-btn");
+          if (deleteBtn) {
+            deleteBtn.addEventListener("click", (event) => {
+              event.stopPropagation();
+              this.deleteSession(session.session_id, li);
+            });
+          }
 
           li.addEventListener("click", () =>
             this.loadChatHistory(session.session_id),
